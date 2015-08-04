@@ -326,7 +326,7 @@ namespace PLH {
 
 		virtual void Hook() override
 		{
-			//Allocate Memory within range of farjump
+			//Allocate Memory as close as possible to src, to minimize chance 32bit displacements will be out of range (if out of range relocation will fail)
 			MEMORY_BASIC_INFORMATION mbi;
 			for (size_t Addr = (size_t)m_hkSrc; Addr > (size_t)m_hkSrc - 0x80000000; Addr = (size_t)mbi.BaseAddress - 1)
 			{

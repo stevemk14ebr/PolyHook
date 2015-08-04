@@ -561,10 +561,13 @@ namespace PLH {
 	class VTableSwap : public IHook
 	{
 	public:
-		VTableSwap() :IHook() {}
+		VTableSwap() :IHook() {
+			m_NeedFree = false;
+		}
 		~VTableSwap()
 		{
-
+			if (m_NeedFree)
+				delete[] m_NewVtable;
 		}
 		virtual void Hook() override
 		{
@@ -573,6 +576,7 @@ namespace PLH {
 			m_VFuncCount = GetVFuncCount(*m_phkClass);
 			m_hkOriginal = *m_phkClass[m_hkIndex];
 			m_NewVtable = (BYTE**) new DWORD_PTR[m_VFuncCount];
+			m_NeedFree = true;
 			memcpy(m_NewVtable, m_phkClass, sizeof(void*)*m_VFuncCount);
 			*m_phkClass = m_NewVtable;
 			m_NewVtable[m_hkIndex] = m_hkDest;
@@ -606,6 +610,7 @@ namespace PLH {
 		BYTE*  m_hkOriginal;
 		int    m_hkIndex;
 		int    m_VFuncCount;
+		bool m_NeedFree;
 	};
 }//end PLH namespace
 #endif//end include guard

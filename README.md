@@ -14,7 +14,7 @@
 3. **_Virtual Function Pointer Swap_** 
   * Description: Swaps the pointer in the Vtable to your hook
   
-4. **_Virtual Tabl Pointer Swap_**
+4. **_Virtual Table Pointer Swap_**
   * Description: Swaps the Vtable pointer after copying pointers in source Vtable, 
   then swaps virtual function pointer in the new copy
 

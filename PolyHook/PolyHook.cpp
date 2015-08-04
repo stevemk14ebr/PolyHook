@@ -51,12 +51,11 @@ public:
 int _tmain(int argc, _TCHAR* argv[])
 {
 	///X86/x64 Detour Example
-	PLH::Detour* Hook =new PLH::Detour();
-	Hook->Initialize();
+	/*PLH::Detour* Hook =new PLH::Detour();
 	Hook->SetupHook((BYTE*)&NoParams, (BYTE*)&hkNoParams);
 	Hook->Hook();
 	oNoParams = Hook->GetOriginal<tNoParams>();
-	NoParams(98);
+	NoParams(98);*/
 
 	///x86/x64 VFuncDetour Example
 	VirtualTest* ClassToHook = new VirtualTest();

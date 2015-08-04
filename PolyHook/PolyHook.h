@@ -136,6 +136,7 @@ namespace PLH {
 		X86Detour() :IHook()
 		{
 			m_NeedFree = false;
+			Initialize();
 		}
 		~X86Detour()
 		{
@@ -280,7 +281,7 @@ namespace PLH {
 						printf("Old Disp:%02X\n", OldDisp);
 
 						DWORD OldDestination = GetDestinationFromDisplacement<WORD>(From + InsOffset, OldDisp, OpCodeSize);
-						WORD NewDisp = CalculateRelativeDisplacement<WORD>(To + InsOffset, OldDestination, OpCodeSize);
+						WORD NewDisp = CalculateRelativeJump<WORD>(To + InsOffset, OldDestination, OpCodeSize);
 						printf("Fixed Disp:%02X\n", NewDisp);
 						*(WORD*)(Code + InsOffset + OpCodeSize) = NewDisp;
 					}
@@ -315,6 +316,7 @@ namespace PLH {
 		X64Detour() :IHook()
 		{
 			m_NeedFree = false;
+			Initialize();
 		}
 		~X64Detour()
 		{

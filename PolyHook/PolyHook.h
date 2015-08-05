@@ -15,8 +15,22 @@ namespace PLH {
 			D_BYTE = 1,
 			D_INVALID = -1
 		};
-		bool IsRelative(BYTE* OpCode, int* OpSize)
+		bool IsRelative(BYTE* OpCode,BYTE MODRM, int* OpSize)
 		{
+			*OpSize = 0;
+			BYTE MOD = MODRM >> 6;
+			BYTE REG = (MODRM & 0x38) >> 3;
+			BYTE RM = MODRM & 7;
+
+			bool ModRelative = false;
+			bool HasSIB = false;
+#ifndef _WIN64
+			if ((MOD==0 || MOD == 1 || MOD == 2) && RM==4)
+			{
+				HasSIB = true;
+				printf("HAS SIB\n");
+			}
+#endif
 			switch (OpCode[0])
 			{
 			case 0x70:
@@ -42,7 +56,9 @@ namespace PLH {
 			case 0xE8:
 			case 0xE9:
 			case 0xEB:
-				*OpSize = 1;
+				*OpSize=1;
+				if (HasSIB)
+					*OpSize+=2; //SIB and MODRM
 				return true;
 				break;
 			case 0x0F: //2 byte opcode
@@ -65,12 +81,21 @@ namespace PLH {
 				case 0x8E:
 				case 0x8F:
 					*OpSize = 2;
+					if (HasSIB)
+						*OpSize+=2;//SIB and MODRM
 					return true;
 					break;
 				}
 				break;
 			default:
-				*OpSize = 0;
+				if (ModRelative)
+				{
+					//EX: FF 25
+					*OpSize = 1;
+					if (HasSIB)
+						*OpSize+=2;//SIB and MODRM
+					return true;
+				}
 				return false;
 			}
 		}
@@ -261,7 +286,7 @@ namespace PLH {
 
 				//Check if instruction is relative
 				int OpCodeSize;
-				if (m_ASMInfo.IsRelative(CurIns->bytes, &OpCodeSize) && OpCodeSize)
+				if (m_ASMInfo.IsRelative(CurIns->bytes,CurIns->detail->x86.modrm, &OpCodeSize) && OpCodeSize)
 				{
 					ASMHelper::DISP DispType = m_ASMInfo.GetDisplacementType(CurIns->size, OpCodeSize);
 					if (DispType == ASMHelper::DISP::D_BYTE)
@@ -369,7 +394,7 @@ namespace PLH {
 			*(DWORD*)(m_hkSrc + 2) = CalculateRelativeDisplacement<DWORD>((DWORD64)m_hkSrc, (DWORD64)&m_Trampoline[Length + 16], 6);
 			*(DWORD64*)&m_Trampoline[Length + 16] = (DWORD64)m_hkDest; //Write the address into memory at [RIP+Displacement]
 
-																	   //Nop Extra bytes from overwritten opcode
+			//Nop Extra bytes from overwritten opcode
 			for (int i = 6; i < Length; i++)
 				m_hkSrc[i] = 0x90;
 
@@ -443,7 +468,7 @@ namespace PLH {
 				printf("%s %s\n", CurIns->mnemonic, CurIns->op_str);
 
 				int OpCodeSize;
-				if (m_ASMInfo.IsRelative(CurIns->bytes, &OpCodeSize) && OpCodeSize)
+				if (m_ASMInfo.IsRelative(CurIns->bytes,CurIns->detail->x86.modrm, &OpCodeSize) && OpCodeSize)
 				{
 					//Need to add RIP relative shit still, and check if NewDisp is > max value of DispType
 					ASMHelper::DISP DispType = m_ASMInfo.GetDisplacementType(CurIns->size, OpCodeSize);
@@ -457,8 +482,7 @@ namespace PLH {
 						BYTE NewDisp = CalculateRelativeDisplacement<BYTE>(To + InsOffset, OldDestination, OpCodeSize);
 						printf("Fixed Disp:%02X\n", NewDisp);
 						*(BYTE*)(Code + InsOffset + OpCodeSize) = NewDisp;
-					}
-					else if (DispType == ASMHelper::DISP::D_WORD) {
+					}else if (DispType == ASMHelper::DISP::D_WORD) {
 						WORD OldDisp;
 						OldDisp = m_ASMInfo.GetDisplacement<WORD>(CurIns->bytes, OpCodeSize);
 						printf("Old Disp:%02X\n", OldDisp);
@@ -467,8 +491,7 @@ namespace PLH {
 						WORD NewDisp = CalculateRelativeDisplacement<WORD>(To + InsOffset, OldDestination, OpCodeSize);
 						printf("Fixed Disp:%02X\n", NewDisp);
 						*(WORD*)(Code + InsOffset + OpCodeSize) = NewDisp;
-					}
-					else if (DispType == ASMHelper::DISP::D_DWORD) {
+					}else if (DispType == ASMHelper::DISP::D_DWORD) {
 						DWORD OldDisp;
 						OldDisp = m_ASMInfo.GetDisplacement<DWORD>(CurIns->bytes, OpCodeSize);
 						printf("Old Disp:%X\n", OldDisp);

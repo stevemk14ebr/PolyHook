@@ -258,8 +258,8 @@ namespace PLH {
 					BigEnough = true;
 
 				printf("%I64X: ", CurIns->address);
-				for (int i = 0; i < CurIns->size; i++)
-					printf("%02X ", CurIns->bytes[i]);
+				for (int j = 0; j < CurIns->size; j++)
+					printf("%02X ", CurIns->bytes[j]);
 				printf("%s %s\n", CurIns->mnemonic, CurIns->op_str);
 			}
 			if (!BigEnough)
@@ -280,48 +280,48 @@ namespace PLH {
 				cs_insn* CurIns = (cs_insn*)&InstructionInfo[i];
 
 				printf("%I64X: ", CurIns->address);
-				for (int i = 0; i < CurIns->size; i++)
-					printf("%02X ", CurIns->bytes[i]);
+				for (int j = 0; j < CurIns->size; j++)
+					printf("%02X ", CurIns->bytes[j]);
 				printf("%s %s\n", CurIns->mnemonic, CurIns->op_str);
 
 				//Check if instruction is relative
 				int OpCodeSize;
-				if (m_ASMInfo.IsRelative(CurIns->bytes,CurIns->detail->x86.modrm, &OpCodeSize) && OpCodeSize)
-				{
-					ASMHelper::DISP DispType = m_ASMInfo.GetDisplacementType(CurIns->size, OpCodeSize);
-					if (DispType == ASMHelper::DISP::D_BYTE)
+					if (m_ASMInfo.IsRelative(CurIns->bytes,CurIns->detail->x86.modrm, &OpCodeSize) && OpCodeSize)
 					{
-						BYTE OldDisp;
-						OldDisp = m_ASMInfo.GetDisplacement<BYTE>(CurIns->bytes, OpCodeSize);
-						printf("Old Disp:%02X\n", OldDisp);
+						ASMHelper::DISP DispType = m_ASMInfo.GetDisplacementType(CurIns->size, OpCodeSize);
+						if (DispType == ASMHelper::DISP::D_BYTE)
+						{
+							BYTE OldDisp;
+							OldDisp = m_ASMInfo.GetDisplacement<BYTE>(CurIns->bytes, OpCodeSize);
+							printf("Old Disp:%02X\n", OldDisp);
 
-						DWORD OldDestination = GetDestinationFromDisplacement<BYTE>(From + InsOffset, OldDisp, OpCodeSize);
-						BYTE NewDisp = CalculateRelativeJump<BYTE>(To + InsOffset, OldDestination, OpCodeSize);
-						printf("Fixed Disp:%02X\n", NewDisp);
-						*(BYTE*)(Code + InsOffset + OpCodeSize) = NewDisp;
-					}
-					else if (DispType == ASMHelper::DISP::D_WORD) {
-						WORD OldDisp;
-						OldDisp = m_ASMInfo.GetDisplacement<WORD>(CurIns->bytes, OpCodeSize);
-						printf("Old Disp:%02X\n", OldDisp);
+							DWORD OldDestination = GetDestinationFromDisplacement<BYTE>(From + InsOffset, OldDisp, OpCodeSize);
+							BYTE NewDisp = CalculateRelativeJump<BYTE>(To + InsOffset, OldDestination, OpCodeSize);
+							printf("Fixed Disp:%02X\n", NewDisp);
+							*(BYTE*)(Code + InsOffset + OpCodeSize) = NewDisp;
+						}
+						else if (DispType == ASMHelper::DISP::D_WORD) {
+							WORD OldDisp;
+							OldDisp = m_ASMInfo.GetDisplacement<WORD>(CurIns->bytes, OpCodeSize);
+							printf("Old Disp:%02X\n", OldDisp);
 
-						DWORD OldDestination = GetDestinationFromDisplacement<WORD>(From + InsOffset, OldDisp, OpCodeSize);
-						WORD NewDisp = CalculateRelativeJump<WORD>(To + InsOffset, OldDestination, OpCodeSize);
-						printf("Fixed Disp:%02X\n", NewDisp);
-						*(WORD*)(Code + InsOffset + OpCodeSize) = NewDisp;
-					}
-					else if (DispType == ASMHelper::DISP::D_DWORD) {
-						DWORD OldDisp;
-						OldDisp = m_ASMInfo.GetDisplacement<DWORD>(CurIns->bytes, OpCodeSize);
-						printf("Old Disp:%X\n", OldDisp);
+							DWORD OldDestination = GetDestinationFromDisplacement<WORD>(From + InsOffset, OldDisp, OpCodeSize);
+							WORD NewDisp = CalculateRelativeJump<WORD>(To + InsOffset, OldDestination, OpCodeSize);
+							printf("Fixed Disp:%02X\n", NewDisp);
+							*(WORD*)(Code + InsOffset + OpCodeSize) = NewDisp;
+						}
+						else if (DispType == ASMHelper::DISP::D_DWORD) {
+							DWORD OldDisp;
+							OldDisp = m_ASMInfo.GetDisplacement<DWORD>(CurIns->bytes, OpCodeSize);
+							printf("Old Disp:%X\n", OldDisp);
 
-						DWORD OldDestination = GetDestinationFromDisplacement(From + InsOffset, OldDisp, OpCodeSize);
-						DWORD NewDisp = CalculateRelativeJump<DWORD>(To + InsOffset, OldDestination, OpCodeSize);
-						printf("Fixed Disp:%X\n", NewDisp);
-						*(DWORD*)(Code + InsOffset + OpCodeSize) = NewDisp;
-						break;
+							DWORD OldDestination = GetDestinationFromDisplacement(From + InsOffset, OldDisp, OpCodeSize);
+							DWORD NewDisp = CalculateRelativeJump<DWORD>(To + InsOffset, OldDestination, OpCodeSize);
+							printf("Fixed Disp:%X\n", NewDisp);
+							*(DWORD*)(Code + InsOffset + OpCodeSize) = NewDisp;
+							break;
+						}
 					}
-				}
 				InsOffset += CurIns->size;
 			}
 			cs_free(InstructionInfo, InstructionCount);
@@ -424,13 +424,14 @@ namespace PLH {
 			for (int i = 0; i < InstructionCount && !BigEnough; i++)
 			{
 				cs_insn* CurIns = (cs_insn*)&InstructionInfo[i];
+				cs_detail* detail = CurIns->detail;
 				InstructionSize += CurIns->size;
 				if (InstructionSize >= NeededLength)
 					BigEnough = true;
 
-				printf("%I64X: ", CurIns->address);
-				for (int i = 0; i < CurIns->size; i++)
-					printf("%02X ", CurIns->bytes[i]);
+				printf("%I64X [%d]: ", CurIns->address,CurIns->size);
+				for (int j = 0; j < CurIns->size; j++)
+					printf("%02X ", CurIns->bytes[j]);
 				printf("%s %s\n", CurIns->mnemonic, CurIns->op_str);
 			}
 			if (!BigEnough)
@@ -463,8 +464,8 @@ namespace PLH {
 				cs_insn* CurIns = (cs_insn*)&InstructionInfo[i];
 
 				printf("%I64X: ", CurIns->address);
-				for (int i = 0; i < CurIns->size; i++)
-					printf("%02X ", CurIns->bytes[i]);
+				for (int j = 0; j < CurIns->size; j++)
+					printf("%02X ", CurIns->bytes[j]);
 				printf("%s %s\n", CurIns->mnemonic, CurIns->op_str);
 
 				int OpCodeSize;

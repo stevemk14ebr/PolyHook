@@ -22,15 +22,6 @@ namespace PLH {
 			BYTE REG = (MODRM & 0x38) >> 3;
 			BYTE RM = MODRM & 7;
 
-			bool ModRelative = false;
-			bool HasSIB = false;
-#ifndef _WIN64
-			if ((MOD==0 || MOD == 1 || MOD == 2) && RM==4)
-			{
-				HasSIB = true;
-				printf("HAS SIB\n");
-			}
-#endif
 			switch (OpCode[0])
 			{
 			case 0x70:
@@ -57,8 +48,6 @@ namespace PLH {
 			case 0xE9:
 			case 0xEB:
 				*OpSize=1;
-				if (HasSIB)
-					*OpSize+=2; //SIB and MODRM
 				return true;
 				break;
 			case 0x0F: //2 byte opcode
@@ -81,21 +70,11 @@ namespace PLH {
 				case 0x8E:
 				case 0x8F:
 					*OpSize = 2;
-					if (HasSIB)
-						*OpSize+=2;//SIB and MODRM
 					return true;
 					break;
 				}
 				break;
 			default:
-				if (ModRelative)
-				{
-					//EX: FF 25
-					*OpSize = 1;
-					if (HasSIB)
-						*OpSize+=2;//SIB and MODRM
-					return true;
-				}
 				return false;
 			}
 		}

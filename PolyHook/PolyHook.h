@@ -15,72 +15,9 @@ namespace PLH {
 			D_BYTE = 1,
 			D_INVALID = -1
 		};
-		bool IsRelative(BYTE* OpCode,BYTE MODRM, int* OpSize)
+		DISP GetDisplacementType(const uint8_t DispVal)
 		{
-			*OpSize = 0;
-			BYTE MOD = MODRM >> 6;
-			BYTE REG = (MODRM & 0x38) >> 3;
-			BYTE RM = MODRM & 7;
-
-			switch (OpCode[0])
-			{
-			case 0x70:
-			case 0x71:
-			case 0x72:
-			case 0x73:
-			case 0x74:
-			case 0x75:
-			case 0x76:
-			case 0x77:
-			case 0x78:
-			case 0x79:
-			case 0x7A:
-			case 0x7B:
-			case 0x7C:
-			case 0x7D:
-			case 0x7E:
-			case 0x7F:
-			case 0xE0:
-			case 0xE1:
-			case 0xE2:
-			case 0xE3:
-			case 0xE8:
-			case 0xE9:
-			case 0xEB:
-				*OpSize=1;
-				return true;
-				break;
-			case 0x0F: //2 byte opcode
-				switch (OpCode[1])
-				{
-				case 0x80:
-				case 0x81:
-				case 0x82:
-				case 0x83:
-				case 0x84:
-				case 0x85:
-				case 0x86:
-				case 0x87:
-				case 0x88:
-				case 0x89:
-				case 0x8A:
-				case 0x8B:
-				case 0x8C:
-				case 0x8D:
-				case 0x8E:
-				case 0x8F:
-					*OpSize = 2;
-					return true;
-					break;
-				}
-				break;
-			default:
-				return false;
-			}
-		}
-		DISP GetDisplacementType(const uint32_t InstructionSize, const uint32_t OpCodeLength)
-		{
-			switch (InstructionSize - OpCodeLength)
+			switch (DispVal)
 			{
 			case 1:
 				return DISP::D_BYTE;
@@ -95,11 +32,11 @@ namespace PLH {
 			}
 		}
 		template<typename T>
-		T GetDisplacement(BYTE* Instruction, const uint32_t OpCodeLength)
+		T GetDisplacement(BYTE* Instruction, const uint32_t Offset)
 		{
 			T Disp;
 			memset(&Disp, 0x00, sizeof(T));
-			memcpy(&Disp, &Instruction[OpCodeLength], sizeof(T));
+			memcpy(&Disp, &Instruction[Offset], sizeof(T));
 			return Disp;
 		}
 	};
@@ -111,28 +48,20 @@ namespace PLH {
 		virtual void Hook() = 0;
 		virtual ~IHook()
 		{
-			cs_close(&m_CapstoneHandleX64);
-			cs_close(&m_CapstoneHandleX86);
+			cs_close(&m_CapstoneHandle);
 		}
-		void Initialize()
+		void Initialize(cs_mode Mode)
 		{
-			if (cs_open(CS_ARCH_X86, CS_MODE_64, &m_CapstoneHandleX64) != CS_ERR_OK)
-				printf("Error Initializing Capstone x64\n");
-
-			if (cs_open(CS_ARCH_X86, CS_MODE_32, &m_CapstoneHandleX86) != CS_ERR_OK)
+			if (cs_open(CS_ARCH_X86,Mode, &m_CapstoneHandle) != CS_ERR_OK)
 				printf("Error Initializing Capstone x86\n");
 
-			cs_option(m_CapstoneHandleX64, CS_OPT_DETAIL, CS_OPT_ON);
-			cs_option(m_CapstoneHandleX86, CS_OPT_DETAIL, CS_OPT_ON);
+			cs_option(m_CapstoneHandle, CS_OPT_DETAIL, CS_OPT_ON);
 		}
 	protected:
-		csh m_CapstoneHandleX64;
-		csh m_CapstoneHandleX86;
+		csh m_CapstoneHandle;
 		ASMHelper m_ASMInfo;
 	};
 
-#ifndef _WIN64
-#define Detour X86Detour
 	//x86 5 Byte Detour
 	class X86Detour :public IHook
 	{
@@ -140,7 +69,7 @@ namespace PLH {
 		X86Detour() :IHook()
 		{
 			m_NeedFree = false;
-			Initialize();
+			Initialize(CS_MODE_32);
 		}
 		~X86Detour()
 		{
@@ -223,7 +152,7 @@ namespace PLH {
 		{
 			//Grab First 100 bytes of function, disasm until invalid instruction
 			cs_insn* InstructionInfo;
-			size_t InstructionCount = cs_disasm(m_CapstoneHandleX86, Src, 0x100, (uint64_t)Src, 0, &InstructionInfo);
+			size_t InstructionCount = cs_disasm(m_CapstoneHandle, Src, 0x100, (uint64_t)Src, 0, &InstructionInfo);
 
 			//Loop over instructions until we have atleast NeededLength's Size
 			printf("\nORIGINAL:\n");
@@ -250,68 +179,93 @@ namespace PLH {
 		void RelocateASM(BYTE* Code, DWORD CodeSize, DWORD From, DWORD To)
 		{
 			cs_insn* InstructionInfo;
-			size_t InstructionCount = cs_disasm(m_CapstoneHandleX86, Code, CodeSize, (uint64_t)Code, 0, &InstructionInfo);
+			size_t InstructionCount = cs_disasm(m_CapstoneHandle, Code, CodeSize, (uint64_t)Code, 0, &InstructionInfo);
 
-			printf("\n\nTRAMPOLINE:\n");
+			printf("\nTRAMPOLINE:\n");
 			DWORD InsOffset = 0;
 			for (int i = 0; i < InstructionCount; i++)
 			{
 				cs_insn* CurIns = (cs_insn*)&InstructionInfo[i];
+				cs_x86* x86 = &(CurIns->detail->x86);
 
 				printf("%I64X: ", CurIns->address);
 				for (int j = 0; j < CurIns->size; j++)
 					printf("%02X ", CurIns->bytes[j]);
 				printf("%s %s\n", CurIns->mnemonic, CurIns->op_str);
 
-				//Check if instruction is relative
-				int OpCodeSize;
-					if (m_ASMInfo.IsRelative(CurIns->bytes,CurIns->detail->x86.modrm, &OpCodeSize) && OpCodeSize)
+				for (int j = 0; j < x86->op_count; j++)
+				{
+					cs_x86_op* op = &(x86->operands[j]);
+					if (op->type == X86_OP_MEM)
 					{
-						ASMHelper::DISP DispType = m_ASMInfo.GetDisplacementType(CurIns->size, OpCodeSize);
-						if (DispType == ASMHelper::DISP::D_BYTE)
-						{
-							BYTE OldDisp;
-							OldDisp = m_ASMInfo.GetDisplacement<BYTE>(CurIns->bytes, OpCodeSize);
-							printf("Old Disp:%02X\n", OldDisp);
+						//MEM are types like lea rcx,[rip+0xdead]
+						if (op->mem.base == X86_REG_INVALID)
+							continue;
 
-							DWORD OldDestination = GetDestinationFromDisplacement<BYTE>(From + InsOffset, OldDisp, OpCodeSize);
-							BYTE NewDisp = CalculateRelativeJump<BYTE>(To + InsOffset, OldDestination, OpCodeSize);
-							printf("Fixed Disp:%02X\n", NewDisp);
-							*(BYTE*)(Code + InsOffset + OpCodeSize) = NewDisp;
-						}
-						else if (DispType == ASMHelper::DISP::D_WORD) {
-							WORD OldDisp;
-							OldDisp = m_ASMInfo.GetDisplacement<WORD>(CurIns->bytes, OpCodeSize);
-							printf("Old Disp:%02X\n", OldDisp);
+						const char* RegName = cs_reg_name(m_CapstoneHandle, op->mem.base);
+						if (strcmp(RegName, "eip") != 0)
+							continue;
 
-							DWORD OldDestination = GetDestinationFromDisplacement<WORD>(From + InsOffset, OldDisp, OpCodeSize);
-							WORD NewDisp = CalculateRelativeJump<WORD>(To + InsOffset, OldDestination, OpCodeSize);
-							printf("Fixed Disp:%02X\n", NewDisp);
-							*(WORD*)(Code + InsOffset + OpCodeSize) = NewDisp;
-						}
-						else if (DispType == ASMHelper::DISP::D_DWORD) {
-							DWORD OldDisp;
-							OldDisp = m_ASMInfo.GetDisplacement<DWORD>(CurIns->bytes, OpCodeSize);
-							printf("Old Disp:%X\n", OldDisp);
-
-							DWORD OldDestination = GetDestinationFromDisplacement(From + InsOffset, OldDisp, OpCodeSize);
-							DWORD NewDisp = CalculateRelativeJump<DWORD>(To + InsOffset, OldDestination, OpCodeSize);
-							printf("Fixed Disp:%X\n", NewDisp);
-							*(DWORD*)(Code + InsOffset + OpCodeSize) = NewDisp;
-							break;
-						}
+						_Relocate(CurIns, From, To, x86->offsets.displacement_size, x86->offsets.displacement_offset);
 					}
-				InsOffset += CurIns->size;
+					else if (op->type == X86_OP_IMM) {
+						//IMM types are like call 0xdeadbeef
+						if (x86->op_count > 1) //exclude types like sub rsp,0x20
+							continue;
+
+						//types like push 0x20 slip through, check mnemonic
+						char* mnemonic = CurIns->mnemonic;
+						if (strcmp(mnemonic, "call") != 0 && strcmp(mnemonic, "jmp") != 0) //probably more types than just these, update list as they're found
+							continue;
+
+						_Relocate(CurIns, From, To, x86->offsets.imm_size, x86->offsets.imm_offset);
+					}
+				}
+
+				printf("\nFixed Trampoline:\n");
+				InstructionCount = cs_disasm(m_CapstoneHandle, Code, CodeSize, (uint64_t)Code, 0, &InstructionInfo);
+				for (int i = 0; i < InstructionCount; i++)
+				{
+					cs_insn* CurIns = (cs_insn*)&InstructionInfo[i];
+					cs_x86* x86 = &(CurIns->detail->x86);
+
+					printf("%I64X: ", CurIns->address);
+					for (int j = 0; j < CurIns->size; j++)
+						printf("%02X ", CurIns->bytes[j]);
+					printf("%s %s\n", CurIns->mnemonic, CurIns->op_str);
+				}
 			}
 			cs_free(InstructionInfo, InstructionCount);
+		}
+		void _Relocate(cs_insn* CurIns, DWORD From, DWORD To, const uint8_t DispSize, const uint8_t DispOffset)
+		{
+			printf("Relocating...\n");
+			ASMHelper::DISP DispType = m_ASMInfo.GetDisplacementType(DispSize);
+			if (DispType == ASMHelper::DISP::D_BYTE)
+			{
+				BYTE Disp = m_ASMInfo.GetDisplacement<BYTE>(CurIns->bytes, DispOffset);
+				Disp -= (To - From);
+				*(BYTE*)(CurIns->address + DispOffset) = Disp;
+			}
+			else if (DispType == ASMHelper::DISP::D_WORD) {
+				short Disp = Disp = m_ASMInfo.GetDisplacement<short>(CurIns->bytes, DispOffset);
+				Disp -= (To - From);
+				*(short*)(CurIns->address + DispOffset) = Disp;
+			}
+			else if (DispType == ASMHelper::DISP::D_DWORD) {
+				long Disp = Disp = m_ASMInfo.GetDisplacement<long>(CurIns->bytes, DispOffset);
+				Disp -= (To - From);
+				*(long*)(CurIns->address + DispOffset) = Disp;
+			}
+			else if (DispType == ASMHelper::DISP::D_INVALID)
+				printf("ERROR, Invalid Displacement Type\n");
 		}
 		BYTE* m_Trampoline;
 		BYTE* m_hkSrc;
 		BYTE* m_hkDest;
 		bool m_NeedFree;
 	};
-#else
-#define Detour X64Detour
+
 	//X64 6 Byte Detour
 	class X64Detour :public IHook
 	{
@@ -320,7 +274,7 @@ namespace PLH {
 		X64Detour() :IHook()
 		{
 			m_NeedFree = false;
-			Initialize();
+			Initialize(CS_MODE_64);
 		}
 		~X64Detour()
 		{
@@ -373,7 +327,7 @@ namespace PLH {
 			*(DWORD*)(m_hkSrc + 2) = CalculateRelativeDisplacement<DWORD>((DWORD64)m_hkSrc, (DWORD64)&m_Trampoline[Length + 16], 6);
 			*(DWORD64*)&m_Trampoline[Length + 16] = (DWORD64)m_hkDest; //Write the address into memory at [RIP+Displacement]
 
-			//Nop Extra bytes from overwritten opcode
+																	   //Nop Extra bytes from overwritten opcode
 			for (int i = 6; i < Length; i++)
 				m_hkSrc[i] = 0x90;
 
@@ -394,7 +348,7 @@ namespace PLH {
 		{
 			//Grab First 100 bytes of function, disasm until invalid instruction
 			cs_insn* InstructionInfo;
-			size_t InstructionCount = cs_disasm(m_CapstoneHandleX64, Src, 0x100, (uint64_t)Src, 0, &InstructionInfo);
+			size_t InstructionCount = cs_disasm(m_CapstoneHandle, Src, 0x100, (uint64_t)Src, 0, &InstructionInfo);
 
 			//Loop over instructions until we have at least NeededLength's Size
 			printf("\nORIGINAL:\n");
@@ -403,12 +357,11 @@ namespace PLH {
 			for (int i = 0; i < InstructionCount && !BigEnough; i++)
 			{
 				cs_insn* CurIns = (cs_insn*)&InstructionInfo[i];
-				cs_detail* detail = CurIns->detail;
 				InstructionSize += CurIns->size;
 				if (InstructionSize >= NeededLength)
 					BigEnough = true;
 
-				printf("%I64X [%d]: ", CurIns->address,CurIns->size);
+				printf("%I64X [%d]: ", CurIns->address, CurIns->size);
 				for (int j = 0; j < CurIns->size; j++)
 					printf("%02X ", CurIns->bytes[j]);
 				printf("%s %s\n", CurIns->mnemonic, CurIns->op_str);
@@ -434,64 +387,94 @@ namespace PLH {
 		void RelocateASM(BYTE* Code, DWORD64 CodeSize, DWORD64 From, DWORD64 To)
 		{
 			cs_insn* InstructionInfo;
-			size_t InstructionCount = cs_disasm(m_CapstoneHandleX64, Code, CodeSize, (uint64_t)Code, 0, &InstructionInfo);
+			size_t InstructionCount = cs_disasm(m_CapstoneHandle, Code, CodeSize, (uint64_t)Code, 0, &InstructionInfo);
 
-			printf("\n\nTRAMPOLINE:\n");
-			DWORD InsOffset = 0;
+			printf("\nTrampoline:\n");
 			for (int i = 0; i < InstructionCount; i++)
 			{
 				cs_insn* CurIns = (cs_insn*)&InstructionInfo[i];
+				cs_x86* x86 = &(CurIns->detail->x86);
 
 				printf("%I64X: ", CurIns->address);
 				for (int j = 0; j < CurIns->size; j++)
 					printf("%02X ", CurIns->bytes[j]);
 				printf("%s %s\n", CurIns->mnemonic, CurIns->op_str);
 
-				int OpCodeSize;
-				if (m_ASMInfo.IsRelative(CurIns->bytes,CurIns->detail->x86.modrm, &OpCodeSize) && OpCodeSize)
+				for (int j = 0; j < x86->op_count; j++)
 				{
-					//Need to add RIP relative shit still, and check if NewDisp is > max value of DispType
-					ASMHelper::DISP DispType = m_ASMInfo.GetDisplacementType(CurIns->size, OpCodeSize);
-					if (DispType == ASMHelper::DISP::D_BYTE)
+					cs_x86_op* op = &(x86->operands[j]);
+					if (op->type == X86_OP_MEM)
 					{
-						BYTE OldDisp;
-						OldDisp = m_ASMInfo.GetDisplacement<BYTE>(CurIns->bytes, OpCodeSize);
-						printf("Old Disp:%02X\n", OldDisp);
+						//MEM are types like lea rcx,[rip+0xdead]
+						if (op->mem.base == X86_REG_INVALID)
+							continue;
 
-						DWORD64 OldDestination = GetDestinationFromDisplacement<BYTE>(From + InsOffset, OldDisp, OpCodeSize);
-						BYTE NewDisp = CalculateRelativeDisplacement<BYTE>(To + InsOffset, OldDestination, OpCodeSize);
-						printf("Fixed Disp:%02X\n", NewDisp);
-						*(BYTE*)(Code + InsOffset + OpCodeSize) = NewDisp;
-					}else if (DispType == ASMHelper::DISP::D_WORD) {
-						WORD OldDisp;
-						OldDisp = m_ASMInfo.GetDisplacement<WORD>(CurIns->bytes, OpCodeSize);
-						printf("Old Disp:%02X\n", OldDisp);
+						const char* RegName = cs_reg_name(m_CapstoneHandle, op->mem.base);
+						if (strcmp(RegName, "rip") != 0)
+							continue;
 
-						DWORD64 OldDestination = GetDestinationFromDisplacement<WORD>(From + InsOffset, OldDisp, OpCodeSize);
-						WORD NewDisp = CalculateRelativeDisplacement<WORD>(To + InsOffset, OldDestination, OpCodeSize);
-						printf("Fixed Disp:%02X\n", NewDisp);
-						*(WORD*)(Code + InsOffset + OpCodeSize) = NewDisp;
-					}else if (DispType == ASMHelper::DISP::D_DWORD) {
-						DWORD OldDisp;
-						OldDisp = m_ASMInfo.GetDisplacement<DWORD>(CurIns->bytes, OpCodeSize);
-						printf("Old Disp:%X\n", OldDisp);
+						_Relocate(CurIns, From, To, x86->offsets.displacement_size, x86->offsets.displacement_offset);
+					}
+					else if (op->type == X86_OP_IMM) {
+						//IMM types are like call 0xdeadbeef
+						if (x86->op_count>1) //exclude types like sub rsp,0x20
+							continue;
 
-						DWORD64 OldDestination = GetDestinationFromDisplacement(From + InsOffset, OldDisp, OpCodeSize);
-						DWORD NewDisp = CalculateRelativeDisplacement<DWORD>(To + InsOffset, OldDestination, OpCodeSize);
-						printf("Fixed Disp:%X\n", NewDisp);
-						*(DWORD*)(Code + InsOffset + OpCodeSize) = NewDisp;
-						break;
+						//types like push 0x20 slip through, check mnemonic
+						char* mnemonic = CurIns->mnemonic;
+						if (strcmp(mnemonic, "call") != 0 && strcmp(mnemonic, "jmp") != 0) //probably more types than just these, update list as they're found
+							continue;
+
+						_Relocate(CurIns, From, To, x86->offsets.imm_size, x86->offsets.imm_offset);
 					}
 				}
-				InsOffset += CurIns->size;
+			}
+
+			printf("\nFixed Trampoline\n");
+			InstructionCount = cs_disasm(m_CapstoneHandle, Code, CodeSize, (uint64_t)Code, 0, &InstructionInfo);
+			for (int i = 0; i < InstructionCount; i++)
+			{
+				cs_insn* CurIns = (cs_insn*)&InstructionInfo[i];
+				cs_x86* x86 = &(CurIns->detail->x86);
+
+				printf("%I64X: ", CurIns->address);
+				for (int j = 0; j < CurIns->size; j++)
+					printf("%02X ", CurIns->bytes[j]);
+				printf("%s %s\n", CurIns->mnemonic, CurIns->op_str);
 			}
 			cs_free(InstructionInfo, InstructionCount);
+		}
+		void _Relocate(cs_insn* CurIns, DWORD64 From, DWORD64 To, const uint8_t DispSize, const uint8_t DispOffset)
+		{
+			printf("Relocating...\n");
+			ASMHelper::DISP DispType = m_ASMInfo.GetDisplacementType(DispSize);
+			if (DispType == ASMHelper::DISP::D_BYTE)
+			{
+				BYTE Disp = m_ASMInfo.GetDisplacement<BYTE>(CurIns->bytes, DispOffset);
+				Disp -= (To - From);
+				*(BYTE*)(CurIns->address + DispOffset) = Disp;
+			}
+			else if (DispType == ASMHelper::DISP::D_WORD) {
+				short Disp = Disp = m_ASMInfo.GetDisplacement<short>(CurIns->bytes, DispOffset);
+				Disp -= (To - From);
+				*(short*)(CurIns->address + DispOffset) = Disp;
+			}
+			else if (DispType == ASMHelper::DISP::D_DWORD) {
+				long Disp = Disp = m_ASMInfo.GetDisplacement<long>(CurIns->bytes, DispOffset);
+				Disp -= (To - From);
+				*(long*)(CurIns->address + DispOffset) = Disp;
+			}
 		}
 		BYTE* m_Trampoline;
 		bool m_NeedFree;
 		BYTE* m_hkSrc;
 		BYTE* m_hkDest;
 	};
+
+#ifndef _WIN64
+#define Detour X86Detour
+#else
+#define Detour X64Detour
 #endif //END _WIN64 IFDEF
 
 	//Swap Virtual Function Pointer to Destination
@@ -533,7 +516,11 @@ namespace PLH {
 		VFuncDetour() :IHook()
 		{
 			m_Detour = new Detour();
-			m_Detour->Initialize();
+#ifdef _WIN64
+			m_Detour->Initialize(CS_MODE_64);
+#else
+			m_Detour->Initialize(CS_MODE_32);
+#endif // _WIN64
 		}
 		~VFuncDetour() {
 			delete m_Detour;

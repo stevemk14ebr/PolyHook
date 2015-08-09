@@ -20,6 +20,6 @@
 
 *All methods support x86 and x64
 
-**RELIES ON MODIFIED CAPSTONE BRANCH, THIS BRANC CAN BE FOUND HERE:https://github.com/stevemk14ebr/capstone**
+**RELIES ON MODIFIED CAPSTONE BRANCH, THIS BRANCH CAN BE FOUND HERE:https://github.com/stevemk14ebr/capstone**
 
 Credits to DarthTon, evolution536, Dogmatt

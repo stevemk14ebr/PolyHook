@@ -50,14 +50,14 @@ namespace PLH {
 		{
 			cs_close(&m_CapstoneHandle);
 		}
+	protected:
 		void Initialize(cs_mode Mode)
 		{
-			if (cs_open(CS_ARCH_X86,Mode, &m_CapstoneHandle) != CS_ERR_OK)
+			if (cs_open(CS_ARCH_X86, Mode, &m_CapstoneHandle) != CS_ERR_OK)
 				printf("Error Initializing Capstone x86\n");
 
 			cs_option(m_CapstoneHandle, CS_OPT_DETAIL, CS_OPT_ON);
 		}
-	protected:
 		csh m_CapstoneHandle;
 		ASMHelper m_ASMInfo;
 	};
@@ -65,7 +65,13 @@ namespace PLH {
 	class IDetour :public IHook
 	{
 	public:
-		IDetour():IHook(),m_NeedFree(false){}
+		IDetour():IHook(),m_NeedFree(false){
+#ifdef _WIN64
+			Initialize(CS_MODE_64);
+#else
+			Initialize(CS_MODE_32);
+#endif // _WIN64
+		}
 		virtual ~IDetour() = default;
 		void SetupHook(BYTE* Src, BYTE* Dest)
 		{
@@ -138,14 +144,10 @@ namespace PLH {
 						if (op->mem.base == X86_REG_INVALID)
 							continue;
 
-						const char* RegName = cs_reg_name(m_CapstoneHandle, op->mem.base);
-#ifdef _WIN64
-						if (strcmp(RegName, "rip") != 0)
+						//Are we relative to instruction pointer?
+						if (op->mem.base != GetIpReg())
 							continue;
-#else
-						if (strcmp(RegName, "eip") != 0)
-							continue;
-#endif // _WIN64
+
 						_Relocate(CurIns, From, To, x86->offsets.displacement_size, x86->offsets.displacement_offset);
 					}else if (op->type == X86_OP_IMM) {
 						//IMM types are like call 0xdeadbeef
@@ -195,10 +197,12 @@ namespace PLH {
 				*(long*)(CurIns->address + DispOffset) = Disp;
 			}
 		}
+		virtual x86_reg GetIpReg() = 0;
 		BYTE* m_Trampoline;
 		bool m_NeedFree;
 		BYTE* m_hkSrc;
 		BYTE* m_hkDest;
+		cs_mode m_CapMode;
 	};
 
 #ifndef _WIN64
@@ -207,10 +211,7 @@ namespace PLH {
 	class X86Detour :public IDetour
 	{
 	public:
-		X86Detour() :IDetour()
-		{
-			Initialize(CS_MODE_32);
-		}
+		X86Detour() : IDetour() {}
 		~X86Detour() {
 			if (m_NeedFree)
 				delete[] m_Trampoline;
@@ -263,6 +264,11 @@ namespace PLH {
 			-JMP Rest of function (in original)
 			*/
 		}
+	protected:
+		virtual x86_reg GetIpReg() override
+		{
+			return X86_REG_EIP;
+		}
 	};
 #else
 #define Detour X64Detour
@@ -271,11 +277,7 @@ namespace PLH {
 	{
 	public:
 		//Credits DarthTon, evolution536
-		X64Detour() :IDetour()
-		{
-			m_NeedFree = false;
-			Initialize(CS_MODE_64);
-		}
+		X64Detour() :IDetour() {}
 		~X64Detour()
 		{
 			if (m_NeedFree)
@@ -333,6 +335,11 @@ namespace PLH {
 
 			VirtualProtect(m_hkSrc, 6, flOld, &flOld);
 		}
+	protected:
+		virtual x86_reg GetIpReg() override
+		{
+			return X86_REG_RIP;
+		}
 	};
 #endif //END _WIN64 IFDEF
 
@@ -375,11 +382,6 @@ namespace PLH {
 		VFuncDetour() :IHook()
 		{
 			m_Detour = new Detour();
-#ifdef _WIN64
-			m_Detour->Initialize(CS_MODE_64);
-#else
-			m_Detour->Initialize(CS_MODE_32);
-#endif // _WIN64
 		}
 		~VFuncDetour() {
 			delete m_Detour;

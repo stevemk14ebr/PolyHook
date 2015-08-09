@@ -139,12 +139,15 @@ namespace PLH {
 							continue;
 
 						const char* RegName = cs_reg_name(m_CapstoneHandle, op->mem.base);
+#ifdef _WIN64
 						if (strcmp(RegName, "rip") != 0)
 							continue;
-
+#else
+						if (strcmp(RegName, "eip") != 0)
+							continue;
+#endif // _WIN64
 						_Relocate(CurIns, From, To, x86->offsets.displacement_size, x86->offsets.displacement_offset);
-					}
-					else if (op->type == X86_OP_IMM) {
+					}else if (op->type == X86_OP_IMM) {
 						//IMM types are like call 0xdeadbeef
 						if (x86->op_count > 1) //exclude types like sub rsp,0x20
 							continue;

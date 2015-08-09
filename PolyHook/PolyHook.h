@@ -73,6 +73,11 @@ namespace PLH {
 #endif // _WIN64
 		}
 		virtual ~IDetour() = default;
+		template<typename T>
+		void SetupHook(T* Src, T* Dest)
+		{
+			SetupHook((BYTE*)Src, (BYTE*)Dest);
+		}
 		void SetupHook(BYTE* Src, BYTE* Dest)
 		{
 			m_hkSrc = Src;

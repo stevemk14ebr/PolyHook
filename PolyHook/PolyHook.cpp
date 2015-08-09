@@ -27,8 +27,6 @@ int __stdcall hkNoParams(int intparam)
 	return oNoParams(intparam);
 }
 
-
-
 void hkVirtNoParams(DWORD_PTR pThis)
 {
 	printf("hk Virt Called\n");
@@ -53,7 +51,7 @@ int _tmain(int argc, _TCHAR* argv[])
 {
 	///X86/x64 Detour Example
 	PLH::Detour* Hook = new PLH::Detour();
-	Hook->SetupHook((BYTE*)&NoParams, (BYTE*)&hkNoParams);
+	Hook->SetupHook(&NoParams, &hkNoParams); //can cast to byte* to
 	Hook->Hook();
 	oNoParams = Hook->GetOriginal<tNoParams>();
 	NoParams(98);

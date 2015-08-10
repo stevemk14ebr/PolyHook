@@ -55,6 +55,8 @@ int _tmain(int argc, _TCHAR* argv[])
 	Hook->Hook();
 	oNoParams = Hook->GetOriginal<tNoParams>();
 	NoParams(98);
+	Hook->UnHook();
+	NoParams(99);
 
 	///x86/x64 VFuncDetour Example
 	VirtualTest* ClassToHook = new VirtualTest();
@@ -62,21 +64,27 @@ int _tmain(int argc, _TCHAR* argv[])
 	VirtHook->SetupHook(*(BYTE***)ClassToHook, 0,(BYTE*)&hkVirtNoParams);
 	VirtHook->Hook();
 	oVirtNoParams = VirtHook->GetOriginal<tVirtNoParams>();
+	ClassToHook->NoParamVirt();
+	VirtHook->UnHook();
 	ClassToHook->NoParamVirt();*/
 
 	///x86/x64 VFuncSwap Example
 	/*PLH::VFuncSwap* VirtHook = new PLH::VFuncSwap();
-	VirtHook->SetupHook(*(BYTE***)ClassToHook, 0,(BYTE*)&hkVirtNoParams);
+	VirtHook->SetupHook(*(BYTE***)ClassToHook, 0, (BYTE*)&hkVirtNoParams);
 	VirtHook->Hook();
 	oVirtNoParams = VirtHook->GetOriginal<tVirtNoParams>();
+	ClassToHook->NoParamVirt();
+	VirtHook->UnHook();
 	ClassToHook->NoParamVirt();*/
 
 	///x86/x64 VTableSwap Example
-	/*PLH::VTableSwap* VTableHook = new PLH::VTableSwap();
-	VTableHook->SetupHook((BYTE*)ClassToHook, 0, (BYTE*)&hkVirtNoParams);
-	VTableHook->Hook();
-	oVirtNoParams = VTableHook->GetOriginal<tVirtNoParams>();
-	ClassToHook->NoParamVirt();*/
+	//PLH::VTableSwap* VTableHook = new PLH::VTableSwap();
+	//VTableHook->SetupHook((BYTE*)ClassToHook, 0, (BYTE*)&hkVirtNoParams);
+	//VTableHook->Hook();
+	//oVirtNoParams = VTableHook->GetOriginal<tVirtNoParams>();
+	//ClassToHook->NoParamVirt();
+	//VTableHook->UnHook();
+	//ClassToHook->NoParamVirt();
 
 	Sleep(100000);
 	return 0;

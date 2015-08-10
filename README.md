@@ -23,3 +23,6 @@
 **RELIES ON MODIFIED CAPSTONE BRANCH, THIS BRANCH CAN BE FOUND HERE:https://github.com/stevemk14ebr/capstone**
 
 Credits to DarthTon, evolution536, Dogmatt
+
+#LICENSE:
+BSD 2-Clause (Simplified BSD)

@@ -252,7 +252,7 @@ namespace PLH {
 			//Write nops over bytes of overwritten instructions
 			for (int i = 5; i < Length; i++)
 				m_hkSrc[i] = 0x90;
-
+			FlushInstructionCache(GetCurrentProcess(), m_hkSrc, Length);
 			//Revert to old protection on original function
 			VirtualProtect(m_hkSrc, Length, OldProtection, &OldProtection);
 			/*Original
@@ -334,10 +334,12 @@ namespace PLH {
 			*(long*)(m_hkSrc + 2) = CalculateRelativeDisplacement<long>((DWORD64)m_hkSrc, (DWORD64)&m_Trampoline[Length + 16], 6);
 			*(DWORD64*)&m_Trampoline[Length + 16] = (DWORD64)m_hkDest; //Write the address into memory at [RIP+Displacement]
 
+
 			//Nop Extra bytes from overwritten opcode
 			for (int i = 6; i < Length; i++)
 				m_hkSrc[i] = 0x90;
 
+			FlushInstructionCache(GetCurrentProcess(), m_hkSrc, Length);
 			VirtualProtect(m_hkSrc, 6, flOld, &flOld);
 		}
 	protected:

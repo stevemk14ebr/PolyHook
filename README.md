@@ -24,5 +24,5 @@
 
 Credits to DarthTon, evolution536, Dogmatt
 
-#LISCENSE:
+#LICENSE:
 BSD 2-Clause (Simplified BSD)

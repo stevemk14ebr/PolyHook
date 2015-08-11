@@ -1,6 +1,8 @@
 #ifndef POLYHOOK_H
 #define POLYHOOK_H
 #include <capstone.h>
+#include <DbgHelp.h>
+#pragma comment(lib,"Dbghelp.lib")
 #pragma comment(lib,"capstone.lib")
 
 namespace PLH {
@@ -535,6 +537,72 @@ namespace PLH {
 		int    m_hkIndex;
 		int    m_VFuncCount;
 		bool m_NeedFree;
+	};
+
+#define ResolveRVA(base,rva) (( (BYTE*)base) +rva)
+	class IATHook:public IHook
+	{
+	public:
+		IATHook() :IHook() {}
+		~IATHook() {}
+		virtual void Hook() override
+		{
+			HINSTANCE hInst = GetModuleHandle(NULL);
+			ULONG Sz;
+			PIMAGE_IMPORT_DESCRIPTOR pImports = (PIMAGE_IMPORT_DESCRIPTOR)
+				ImageDirectoryEntryToDataEx(hInst, TRUE, IMAGE_DIRECTORY_ENTRY_IMPORT, &Sz, nullptr);
+
+			for (int i = 0; pImports[i].Characteristics != 0; i++)
+			{
+				char* ModuleName = (char*)ResolveRVA(hInst, pImports[i].Name);
+				if (_stricmp(m_hkModule, ModuleName) != 0)
+					continue;
+
+				PIMAGE_THUNK_DATA pOriginalThunk = (PIMAGE_THUNK_DATA)
+					ResolveRVA(hInst, pImports->OriginalFirstThunk);
+				PIMAGE_THUNK_DATA pThunk = (PIMAGE_THUNK_DATA)
+					ResolveRVA(hInst, pImports->FirstThunk);
+				for (; pOriginalThunk->u1.Function != NULL; pOriginalThunk++)
+				{
+					if (pOriginalThunk->u1.Ordinal & IMAGE_ORDINAL_FLAG)
+						continue;
+
+					PIMAGE_IMPORT_BY_NAME pImport = (PIMAGE_IMPORT_BY_NAME)
+						ResolveRVA(hInst, pOriginalThunk->u1.AddressOfData);
+
+					if (_stricmp(m_hkSrcFunc, pImport->Name) != 0)
+						continue;
+
+					MEMORY_BASIC_INFORMATION mbi;
+					VirtualQuery(pThunk, &mbi, sizeof(mbi));
+					VirtualProtect(mbi.BaseAddress, mbi.RegionSize, PAGE_EXECUTE_READWRITE, &mbi.Protect);
+					m_pIATFuncOrig =(void*) pThunk->u1.Function;
+#ifdef _WIN64
+					pThunk->u1.Function = (ULONGLONG)m_hkDest;
+#else
+					pThunk->u1.Function = (DWORD)m_hkDest;
+#endif // _WIN64
+					VirtualProtect(mbi.BaseAddress, mbi.RegionSize, mbi.Protect, &mbi.Protect);
+				}
+			}
+		}
+		virtual void UnHook() override{}
+		template<typename T>
+		T GetOriginal()
+		{
+			return (T)m_pIATFuncOrig;
+		}
+		void SetupHook(char* Module,char* SrcFunc, BYTE* Dest)
+		{
+			strcpy_s(m_hkModule,32, Module);
+			strcpy_s(m_hkSrcFunc,32, SrcFunc);
+			m_hkDest = Dest;
+		}
+	private:
+		char m_hkSrcFunc[32];
+		char m_hkModule[32];
+		BYTE* m_hkDest;
+		void* m_pIATFuncOrig;
 	};
 }//end PLH namespace
 #endif//end include guard

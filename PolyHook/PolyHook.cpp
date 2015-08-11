@@ -11,6 +11,14 @@ tNoParams oNoParams;
 typedef void(__stdcall* tVirtNoParams)(DWORD_PTR pThis);
 tVirtNoParams oVirtNoParams;
 
+typedef void(__stdcall* tSleep)(DWORD dwTime);
+tSleep oSleep;
+void __stdcall hkSleep(DWORD dwTime)
+{
+	printf("Called hk Sleep\n");
+	oSleep(dwTime);
+}
+
 __declspec(noinline) int __stdcall NoParams(int intparam)
 {
 	printf("Hello\n");
@@ -50,13 +58,18 @@ public:
 int _tmain(int argc, _TCHAR* argv[])
 {
 	///X86/x64 Detour Example
-	PLH::Detour* Hook = new PLH::Detour();
-	Hook->SetupHook(&NoParams, &hkNoParams); //can cast to byte* to
+	//PLH::Detour* Hook = new PLH::Detour();
+	//Hook->SetupHook(&NoParams, &hkNoParams); //can cast to byte* to
+	//Hook->Hook();
+	//oNoParams = Hook->GetOriginal<tNoParams>();
+	//NoParams(98);
+	//Hook->UnHook();
+	//NoParams(99);
+
+	PLH::IATHook* Hook = new PLH::IATHook();
+	Hook->SetupHook("kernel32.dll", "sleep", (BYTE*)&hkSleep);
 	Hook->Hook();
-	oNoParams = Hook->GetOriginal<tNoParams>();
-	NoParams(98);
-	Hook->UnHook();
-	NoParams(99);
+	oSleep = Hook->GetOriginal<tSleep>();
 
 	///x86/x64 VFuncDetour Example
 	VirtualTest* ClassToHook = new VirtualTest();

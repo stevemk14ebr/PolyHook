@@ -6,7 +6,7 @@
 1. **_Detour_**
   * Description: Modifies opcode to jmp to hook and allocates a trampoline for jmp back
   * Length Disassembler Support (Capstone)
-  * Supports Basic Code Relocation
+  * Supports Code Relocation, including EIP/RIP relative instructions
 
 2. **_Virtual Function Detour_** : 
   * Description: Detours the function pointed to by the Vtable

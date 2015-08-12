@@ -49,20 +49,7 @@ namespace PLH {
 		IHook() = default;
 		virtual void Hook() = 0;
 		virtual void UnHook() = 0;
-		virtual ~IHook()
-		{
-			cs_close(&m_CapstoneHandle);
-		}
-	protected:
-		void Initialize(cs_mode Mode)
-		{
-			if (cs_open(CS_ARCH_X86, Mode, &m_CapstoneHandle) != CS_ERR_OK)
-				printf("Error Initializing Capstone x86\n");
-
-			cs_option(m_CapstoneHandle, CS_OPT_DETAIL, CS_OPT_ON);
-		}
-		csh m_CapstoneHandle;
-		ASMHelper m_ASMInfo;
+		virtual ~IHook() = default;
 	};
 
 	class IDetour :public IHook
@@ -75,7 +62,9 @@ namespace PLH {
 			Initialize(CS_MODE_32);
 #endif // _WIN64
 		}
-		virtual ~IDetour() = default;
+		virtual ~IDetour() {
+			cs_close(&m_CapstoneHandle);
+		}
 		template<typename T>
 		void SetupHook(T* Src, T* Dest)
 		{
@@ -226,6 +215,16 @@ namespace PLH {
 		{
 			FlushInstructionCache(GetCurrentProcess(), m_hkSrc, m_hkLength);
 		}
+		void Initialize(cs_mode Mode)
+		{
+			if (cs_open(CS_ARCH_X86, Mode, &m_CapstoneHandle) != CS_ERR_OK)
+				printf("Error Initializing Capstone x86\n");
+
+			cs_option(m_CapstoneHandle, CS_OPT_DETAIL, CS_OPT_ON);
+		}
+		csh m_CapstoneHandle;
+		ASMHelper m_ASMInfo;
+
 		BYTE* m_Trampoline;
 		bool m_NeedFree;
 		BYTE* m_hkSrc;

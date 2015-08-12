@@ -6,7 +6,7 @@
 1. **_Detour_**
   * Description: Modifies opcode to jmp to hook and allocates a trampoline for jmp back
   * Length Disassembler Support (Capstone)
-  * Supports Basic Code Relocation
+  * Supports Code Relocation, including EIP/RIP relative instructions
 
 2. **_Virtual Function Detour_** : 
   * Description: Detours the function pointed to by the Vtable
@@ -21,9 +21,9 @@
 5. **Import Address Table**
   * Description: Swaps pointer in the input address table to the hook
 
-*All methods support x86 and x64
-
-**RELIES ON MODIFIED CAPSTONE BRANCH, THIS BRANCH CAN BE FOUND HERE:https://github.com/stevemk14ebr/capstone**
+* All methods support x86 and x64
+* Relies on modified capstone branch https://github.com/stevemk14ebr/capstone
+* More Information can be found at the wiki to the right
 
 Credits to DarthTon, evolution536, Dogmatt
 

@@ -21,9 +21,9 @@
 5. **Import Address Table**
   * Description: Swaps pointer in the input address table to the hook
 
-*All methods support x86 and x64
-
-**RELIES ON MODIFIED CAPSTONE BRANCH, THIS BRANCH CAN BE FOUND HERE:https://github.com/stevemk14ebr/capstone**
+* All methods support x86 and x64
+* Relies on modified capstone branch https://github.com/stevemk14ebr/capstone
+* More Information can be found at the wiki to the right
 
 Credits to DarthTon, evolution536, Dogmatt
 

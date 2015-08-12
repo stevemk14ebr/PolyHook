@@ -547,6 +547,51 @@ namespace PLH {
 		~IATHook() {}
 		virtual void Hook() override
 		{
+			PIMAGE_THUNK_DATA Thunk;
+			if (!FindIATFunc(m_hkModule, m_hkSrcFunc, &Thunk))
+				return;
+
+			MEMORY_BASIC_INFORMATION mbi;
+			VirtualQuery(Thunk, &mbi, sizeof(mbi));
+			VirtualProtect(mbi.BaseAddress, mbi.RegionSize, PAGE_EXECUTE_READWRITE, &mbi.Protect);
+			m_pIATFuncOrig =(void*)Thunk->u1.Function;
+#ifdef _WIN64
+			Thunk->u1.Function =(ULONGLONG) m_hkDest;
+#else
+			Thunk->u1.Function =(DWORD) m_hkDest;
+#endif // _WIN64
+			VirtualProtect(mbi.BaseAddress, mbi.RegionSize, mbi.Protect, &mbi.Protect);
+		}
+		virtual void UnHook() override
+		{
+			PIMAGE_THUNK_DATA Thunk;
+			if (!FindIATFunc(m_hkModule, m_hkSrcFunc, &Thunk))
+				return;
+
+			MEMORY_BASIC_INFORMATION mbi;
+			VirtualQuery(Thunk, &mbi, sizeof(mbi));
+			VirtualProtect(mbi.BaseAddress, mbi.RegionSize, PAGE_EXECUTE_READWRITE, &mbi.Protect);
+#ifdef _WIN64
+			Thunk->u1.Function = (ULONGLONG)m_pIATFuncOrig;
+#else
+			Thunk->u1.Function = (DWORD)m_pIATFuncOrig;
+#endif // _WIN64
+			VirtualProtect(mbi.BaseAddress, mbi.RegionSize, mbi.Protect, &mbi.Protect);
+		}
+		template<typename T>
+		T GetOriginal()
+		{
+			return (T)m_pIATFuncOrig;
+		}
+		void SetupHook(char* Module,char* SrcFunc, BYTE* Dest)
+		{
+			strcpy_s(m_hkModule,32, Module);
+			strcpy_s(m_hkSrcFunc,32, SrcFunc);
+			m_hkDest = Dest;
+		}
+	private:
+		bool FindIATFunc(char* ModuleName, char* FuncName,PIMAGE_THUNK_DATA* pFuncThunkOut)
+		{
 			HINSTANCE hInst = GetModuleHandle(NULL);
 			ULONG Sz;
 			PIMAGE_IMPORT_DESCRIPTOR pImports = (PIMAGE_IMPORT_DESCRIPTOR)
@@ -555,7 +600,7 @@ namespace PLH {
 			for (int i = 0; pImports[i].Characteristics != 0; i++)
 			{
 				char* ModuleName = (char*)ResolveRVA(hInst, pImports[i].Name);
-				if (_stricmp(m_hkModule, ModuleName) != 0)
+				if (_stricmp(ModuleName, ModuleName) != 0)
 					continue;
 
 				PIMAGE_THUNK_DATA pOriginalThunk = (PIMAGE_THUNK_DATA)
@@ -570,35 +615,15 @@ namespace PLH {
 					PIMAGE_IMPORT_BY_NAME pImport = (PIMAGE_IMPORT_BY_NAME)
 						ResolveRVA(hInst, pOriginalThunk->u1.AddressOfData);
 
-					if (_stricmp(m_hkSrcFunc, pImport->Name) != 0)
+					if (_stricmp(FuncName, pImport->Name) != 0)
 						continue;
 
-					MEMORY_BASIC_INFORMATION mbi;
-					VirtualQuery(pThunk, &mbi, sizeof(mbi));
-					VirtualProtect(mbi.BaseAddress, mbi.RegionSize, PAGE_EXECUTE_READWRITE, &mbi.Protect);
-					m_pIATFuncOrig =(void*) pThunk->u1.Function;
-#ifdef _WIN64
-					pThunk->u1.Function = (ULONGLONG)m_hkDest;
-#else
-					pThunk->u1.Function = (DWORD)m_hkDest;
-#endif // _WIN64
-					VirtualProtect(mbi.BaseAddress, mbi.RegionSize, mbi.Protect, &mbi.Protect);
+					*pFuncThunkOut =pThunk;
+					return true;
 				}
 			}
+			return false;
 		}
-		virtual void UnHook() override{}
-		template<typename T>
-		T GetOriginal()
-		{
-			return (T)m_pIATFuncOrig;
-		}
-		void SetupHook(char* Module,char* SrcFunc, BYTE* Dest)
-		{
-			strcpy_s(m_hkModule,32, Module);
-			strcpy_s(m_hkSrcFunc,32, SrcFunc);
-			m_hkDest = Dest;
-		}
-	private:
 		char m_hkSrcFunc[32];
 		char m_hkModule[32];
 		BYTE* m_hkDest;

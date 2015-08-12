@@ -15,7 +15,7 @@ typedef void(__stdcall* tSleep)(DWORD dwTime);
 tSleep oSleep;
 void __stdcall hkSleep(DWORD dwTime)
 {
-	printf("Called hk Sleep\n");
+	printf("Called hk Sleep:%d\n",dwTime);
 	oSleep(dwTime);
 }
 
@@ -70,6 +70,8 @@ int _tmain(int argc, _TCHAR* argv[])
 	Hook->SetupHook("kernel32.dll", "sleep", (BYTE*)&hkSleep);
 	Hook->Hook();
 	oSleep = Hook->GetOriginal<tSleep>();
+	Sleep(100);
+	Hook->UnHook();
 
 	///x86/x64 VFuncDetour Example
 	VirtualTest* ClassToHook = new VirtualTest();

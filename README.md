@@ -18,6 +18,9 @@
   * Description: Swaps the Vtable pointer after copying pointers in source Vtable, 
   then swaps virtual function pointer in the new copy
 
+5. **Import Address Table**
+  * Description: Swaps pointer in the input address table to the hook
+
 *All methods support x86 and x64
 
 **RELIES ON MODIFIED CAPSTONE BRANCH, THIS BRANCH CAN BE FOUND HERE:https://github.com/stevemk14ebr/capstone**

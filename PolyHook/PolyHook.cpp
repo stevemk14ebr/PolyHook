@@ -131,14 +131,12 @@ void PLH::IDetour::_Relocate(cs_insn* CurIns, DWORD64 From, DWORD64 To, const ui
 		int8_t Disp = m_ASMInfo.GetDisplacement<int8_t>(CurIns->bytes, DispOffset);
 		Disp -= (To - From);
 		*(int8_t*)(CurIns->address + DispOffset) = Disp;
-	}
-	else if (DispType == ASMHelper::DISP::D_WORD) {
-		short Disp = Disp = m_ASMInfo.GetDisplacement<short>(CurIns->bytes, DispOffset);
+	}else if (DispType == ASMHelper::DISP::D_WORD) {
+		int16_t Disp = Disp = m_ASMInfo.GetDisplacement<int16_t>(CurIns->bytes, DispOffset);
 		Disp -= (To - From);
 		*(short*)(CurIns->address + DispOffset) = Disp;
-	}
-	else if (DispType == ASMHelper::DISP::D_DWORD) {
-		long Disp = Disp = m_ASMInfo.GetDisplacement<long>(CurIns->bytes, DispOffset);
+	}else if (DispType == ASMHelper::DISP::D_DWORD) {
+		int32_t Disp = Disp = m_ASMInfo.GetDisplacement<int32_t>(CurIns->bytes, DispOffset);
 		Disp -= (To - From);
 		*(long*)(CurIns->address + DispOffset) = Disp;
 	}

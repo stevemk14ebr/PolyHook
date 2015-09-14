@@ -34,7 +34,7 @@ int __stdcall hkNoParams(int intparam)
 	return oNoParams(intparam);
 }
 
-void hkVirtNoParams(DWORD_PTR pThis)
+void __stdcall hkVirtNoParams(DWORD_PTR pThis)
 {
 	printf("hk Virt Called\n");
 	return oVirtNoParams(pThis);
@@ -57,13 +57,13 @@ public:
 int _tmain(int argc, _TCHAR* argv[])
 {
 	///X86/x64 Detour Example
-	PLH::Detour* Hook = new PLH::Detour();
-	Hook->SetupHook(&NoParams, &hkNoParams); //can cast to byte* to
-	Hook->Hook();
-	oNoParams = Hook->GetOriginal<tNoParams>();
-	NoParams(98);
-	Hook->UnHook();
-	NoParams(99);
+	//PLH::Detour* Hook = new PLH::Detour();
+	//Hook->SetupHook(&NoParams, &hkNoParams); //can cast to byte* to
+	//Hook->Hook();
+	//oNoParams = Hook->GetOriginal<tNoParams>();
+	//NoParams(98);
+	//Hook->UnHook();
+	//NoParams(99);
 
 	/*PLH::IATHook* Hook = new PLH::IATHook();
 	Hook->SetupHook("kernel32.dll", "sleep", (BYTE*)&hkSleep);
@@ -74,13 +74,13 @@ int _tmain(int argc, _TCHAR* argv[])
 
 	///x86/x64 VFuncDetour Example
 	VirtualTest* ClassToHook = new VirtualTest();
-	/*PLH::VFuncDetour* VirtHook = new PLH::VFuncDetour();
-	VirtHook->SetupHook(*(BYTE***)ClassToHook, 0,(BYTE*)&hkVirtNoParams);
-	VirtHook->Hook();
-	oVirtNoParams = VirtHook->GetOriginal<tVirtNoParams>();
-	ClassToHook->NoParamVirt();
-	VirtHook->UnHook();
-	ClassToHook->NoParamVirt();*/
+	//PLH::VFuncDetour* VirtHook = new PLH::VFuncDetour();
+	//VirtHook->SetupHook(*(BYTE***)ClassToHook, 0, (BYTE*)&hkVirtNoParams);
+	//VirtHook->Hook();
+	//oVirtNoParams = VirtHook->GetOriginal<tVirtNoParams>();
+	//ClassToHook->NoParamVirt();
+	//VirtHook->UnHook();
+	//ClassToHook->NoParamVirt();
 
 	///x86/x64 VFuncSwap Example
 	/*PLH::VFuncSwap* VirtHook = new PLH::VFuncSwap();

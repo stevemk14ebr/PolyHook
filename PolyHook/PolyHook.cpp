@@ -92,8 +92,7 @@ void PLH::IDetour::RelocateASM(BYTE* Code, DWORD64 CodeSize, DWORD64 From, DWORD
 					continue;
 
 				_Relocate(CurIns, From, To, x86->offsets.displacement_size, x86->offsets.displacement_offset);
-			}
-			else if (op->type == X86_OP_IMM) {
+			}else if (op->type == X86_OP_IMM) {
 				//IMM types are like call 0xdeadbeef
 				if (x86->op_count > 1) //exclude types like sub rsp,0x20
 					continue;

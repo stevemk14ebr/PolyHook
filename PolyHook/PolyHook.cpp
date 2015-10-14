@@ -375,11 +375,11 @@ void PLH::VTableSwap::Hook()
 	DWORD OldProtection;
 	VirtualProtect(m_phkClass, sizeof(void*), PAGE_READWRITE, &OldProtection);
 	m_VFuncCount = GetVFuncCount(*m_phkClass);
-	m_hkOriginal = *m_phkClass[m_hkIndex];
 	m_OrigVtable = *m_phkClass;
+	m_hkOriginal = m_OrigVtable[m_hkIndex];
 	m_NewVtable = (BYTE**) new DWORD_PTR[m_VFuncCount];
 	m_NeedFree = true;
-	memcpy(m_NewVtable, m_phkClass, sizeof(void*)*m_VFuncCount);
+	memcpy(m_NewVtable, m_OrigVtable, sizeof(void*)*m_VFuncCount);
 	*m_phkClass = m_NewVtable;
 	m_NewVtable[m_hkIndex] = m_hkDest;
 	VirtualProtect(m_phkClass, sizeof(void*), OldProtection, &OldProtection);

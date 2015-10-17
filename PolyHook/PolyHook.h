@@ -181,6 +181,16 @@ namespace PLH {
 		VTableSwap();
 		~VTableSwap();
 		virtual void Hook() override;
+		template<typename T>
+		T HookAdditional(const int Index, BYTE* Dest)
+		{
+			//The makes sure we called Hook first
+			if (!m_NeedFree)
+				return nullptr;
+
+			m_NewVtable[Index] = Dest;
+			return (T)m_OrigVtable[Index];
+		}
 		virtual void UnHook() override;
 		void SetupHook(BYTE* pClass, const int Index, BYTE* Dest);
 		template<typename T>

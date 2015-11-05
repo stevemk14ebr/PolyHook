@@ -34,7 +34,7 @@ int __stdcall hkNoParams(int intparam)
 	return oNoParams(intparam);
 }
 
-void hkVirtNoParams(DWORD_PTR pThis)
+void __stdcall hkVirtNoParams(DWORD_PTR pThis)
 {
 	printf("hk Virt Called\n");
 	return oVirtNoParams(pThis);
@@ -74,13 +74,13 @@ int _tmain(int argc, _TCHAR* argv[])
 
 	///x86/x64 VFuncDetour Example
 	VirtualTest* ClassToHook = new VirtualTest();
-	/*PLH::VFuncDetour* VirtHook = new PLH::VFuncDetour();
-	VirtHook->SetupHook(*(BYTE***)ClassToHook, 0,(BYTE*)&hkVirtNoParams);
-	VirtHook->Hook();
-	oVirtNoParams = VirtHook->GetOriginal<tVirtNoParams>();
-	ClassToHook->NoParamVirt();
-	VirtHook->UnHook();
-	ClassToHook->NoParamVirt();*/
+	//PLH::VFuncDetour* VirtHook = new PLH::VFuncDetour();
+	//VirtHook->SetupHook(*(BYTE***)ClassToHook, 0, (BYTE*)&hkVirtNoParams);
+	//VirtHook->Hook();
+	//oVirtNoParams = VirtHook->GetOriginal<tVirtNoParams>();
+	//ClassToHook->NoParamVirt();
+	//VirtHook->UnHook();
+	//ClassToHook->NoParamVirt();
 
 	///x86/x64 VFuncSwap Example
 	/*PLH::VFuncSwap* VirtHook = new PLH::VFuncSwap();

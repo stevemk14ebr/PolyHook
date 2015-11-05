@@ -92,8 +92,7 @@ void PLH::IDetour::RelocateASM(BYTE* Code, DWORD64 CodeSize, DWORD64 From, DWORD
 					continue;
 
 				_Relocate(CurIns, From, To, x86->offsets.displacement_size, x86->offsets.displacement_offset);
-			}
-			else if (op->type == X86_OP_IMM) {
+			}else if (op->type == X86_OP_IMM) {
 				//IMM types are like call 0xdeadbeef
 				if (x86->op_count > 1) //exclude types like sub rsp,0x20
 					continue;
@@ -132,14 +131,12 @@ void PLH::IDetour::_Relocate(cs_insn* CurIns, DWORD64 From, DWORD64 To, const ui
 		int8_t Disp = m_ASMInfo.GetDisplacement<int8_t>(CurIns->bytes, DispOffset);
 		Disp -= (To - From);
 		*(int8_t*)(CurIns->address + DispOffset) = Disp;
-	}
-	else if (DispType == ASMHelper::DISP::D_WORD) {
-		short Disp = Disp = m_ASMInfo.GetDisplacement<short>(CurIns->bytes, DispOffset);
+	}else if (DispType == ASMHelper::DISP::D_WORD) {
+		int16_t Disp = Disp = m_ASMInfo.GetDisplacement<int16_t>(CurIns->bytes, DispOffset);
 		Disp -= (To - From);
 		*(short*)(CurIns->address + DispOffset) = Disp;
-	}
-	else if (DispType == ASMHelper::DISP::D_DWORD) {
-		long Disp = Disp = m_ASMInfo.GetDisplacement<long>(CurIns->bytes, DispOffset);
+	}else if (DispType == ASMHelper::DISP::D_DWORD) {
+		int32_t Disp = Disp = m_ASMInfo.GetDisplacement<int32_t>(CurIns->bytes, DispOffset);
 		Disp -= (To - From);
 		*(long*)(CurIns->address + DispOffset) = Disp;
 	}
@@ -377,12 +374,12 @@ void PLH::VTableSwap::Hook()
 {
 	DWORD OldProtection;
 	VirtualProtect(m_phkClass, sizeof(void*), PAGE_READWRITE, &OldProtection);
-	m_VFuncCount = GetVFuncCount(*m_phkClass);
-	m_hkOriginal = *m_phkClass[m_hkIndex];
 	m_OrigVtable = *m_phkClass;
+	m_hkOriginal = m_OrigVtable[m_hkIndex];
+	m_VFuncCount = GetVFuncCount(m_OrigVtable);
 	m_NewVtable = (BYTE**) new DWORD_PTR[m_VFuncCount];
 	m_NeedFree = true;
-	memcpy(m_NewVtable, m_phkClass, sizeof(void*)*m_VFuncCount);
+	memcpy(m_NewVtable, m_OrigVtable, sizeof(void*)*m_VFuncCount);
 	*m_phkClass = m_NewVtable;
 	m_NewVtable[m_hkIndex] = m_hkDest;
 	VirtualProtect(m_phkClass, sizeof(void*), OldProtection, &OldProtection);
@@ -407,9 +404,9 @@ void PLH::VTableSwap::SetupHook(BYTE* pClass, const int Index, BYTE* Dest)
 int PLH::VTableSwap::GetVFuncCount(BYTE** pVtable)
 {
 	int FuncCount = 0;
-	for (int i = 0; IsValidPtr(m_phkClass[FuncCount]); FuncCount++)
+	for (; ; FuncCount++)
 	{
-		if (!IsValidPtr(m_phkClass[FuncCount]))
+		if (!IsValidPtr(pVtable[FuncCount]))
 			break;
 	}
 	return FuncCount;

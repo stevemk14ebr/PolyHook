@@ -1,7 +1,7 @@
 #ifndef POLYHOOK_H
 #define POLYHOOK_H
 #include <windows.h>
-#include "../Capstone/include/capstone.h"
+#include <capstone.h>
 #include <DbgHelp.h>
 #pragma comment(lib,"Dbghelp.lib")
 #pragma comment(lib,"capstone.lib")

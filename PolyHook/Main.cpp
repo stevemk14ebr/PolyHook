@@ -1,6 +1,7 @@
 // PolyHook.cpp : Defines the entry point for the console application.
 //
-#include <tchar.h>
+
+#include "stdafx.h"
 #include "PolyHook.h"
 
 typedef int(__stdcall* tNoParams)(int intparam);

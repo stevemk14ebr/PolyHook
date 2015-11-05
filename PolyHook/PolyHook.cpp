@@ -468,7 +468,7 @@ void PLH::IATHook::SetupHook(char* LibraryName, char* SrcFunc, BYTE* Dest, char*
 bool PLH::IATHook::FindIATFunc(char* LibraryName, char* FuncName, PIMAGE_THUNK_DATA* pFuncThunkOut,char* Module)
 {
 	bool UseModuleName = true;
-	if (Module != NULL || Module[0] != '\0')
+	if (Module == NULL || Module[0] == '\0')
 		UseModuleName = false;
 
 	HINSTANCE hInst = GetModuleHandleA(UseModuleName ? Module:NULL);

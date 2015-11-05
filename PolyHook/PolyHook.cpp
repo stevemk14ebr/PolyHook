@@ -425,7 +425,7 @@ void PLH::VTableSwap::FreeNewVtable()
 void PLH::IATHook::Hook()
 {
 	PIMAGE_THUNK_DATA Thunk;
-	if (!FindIATFunc(m_hkLibraryName, m_hkSrcFunc, &Thunk))
+	if (!FindIATFunc(m_hkLibraryName, m_hkSrcFunc, &Thunk,m_hkModuleName))
 		return;
 
 	MEMORY_BASIC_INFORMATION mbi;
@@ -457,16 +457,21 @@ void PLH::IATHook::UnHook()
 	VirtualProtect(mbi.BaseAddress, mbi.RegionSize, mbi.Protect, &mbi.Protect);
 }
 
-void PLH::IATHook::SetupHook(char* LibraryName, char* SrcFunc, BYTE* Dest)
+void PLH::IATHook::SetupHook(char* LibraryName, char* SrcFunc, BYTE* Dest, char* Module)
 {
 	strcpy_s(m_hkLibraryName, 32, LibraryName);
 	strcpy_s(m_hkSrcFunc, 32, SrcFunc);
+	strcpy_s(m_hkModuleName, 32, Module);
 	m_hkDest = Dest;
 }
 
-bool PLH::IATHook::FindIATFunc(char* LibraryName, char* FuncName, PIMAGE_THUNK_DATA* pFuncThunkOut)
+bool PLH::IATHook::FindIATFunc(char* LibraryName, char* FuncName, PIMAGE_THUNK_DATA* pFuncThunkOut,char* Module)
 {
-	HINSTANCE hInst = GetModuleHandle(NULL);
+	bool UseModuleName = true;
+	if (Module != NULL || Module[0] != '\0')
+		UseModuleName = false;
+
+	HINSTANCE hInst = GetModuleHandleA(UseModuleName ? Module:NULL);
 	ULONG Sz;
 	PIMAGE_IMPORT_DESCRIPTOR pImports = (PIMAGE_IMPORT_DESCRIPTOR)
 		ImageDirectoryEntryToDataEx(hInst, TRUE, IMAGE_DIRECTORY_ENTRY_IMPORT, &Sz, nullptr);

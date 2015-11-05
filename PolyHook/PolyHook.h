@@ -224,11 +224,12 @@ namespace PLH {
 		{
 			return (T)m_pIATFuncOrig;
 		}
-		void SetupHook(char* Module,char* SrcFunc, BYTE* Dest);
+		void SetupHook(char* LibraryName,char* SrcFunc, BYTE* Dest,char* Module = "");
 	private:
-		bool FindIATFunc(char* ModuleName, char* FuncName,PIMAGE_THUNK_DATA* pFuncThunkOut);
+		bool FindIATFunc(char* LibraryName, char* FuncName,PIMAGE_THUNK_DATA* pFuncThunkOut,char* Module = "");
 		char m_hkSrcFunc[32];
 		char m_hkLibraryName[32];
+		char m_hkModuleName[32];
 		BYTE* m_hkDest;
 		void* m_pIATFuncOrig;
 	};

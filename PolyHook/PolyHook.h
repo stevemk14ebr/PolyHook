@@ -228,7 +228,7 @@ namespace PLH {
 	private:
 		bool FindIATFunc(char* ModuleName, char* FuncName,PIMAGE_THUNK_DATA* pFuncThunkOut);
 		char m_hkSrcFunc[32];
-		char m_hkModule[32];
+		char m_hkLibraryName[32];
 		BYTE* m_hkDest;
 		void* m_pIATFuncOrig;
 	};

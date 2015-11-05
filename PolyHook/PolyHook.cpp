@@ -425,7 +425,7 @@ void PLH::VTableSwap::FreeNewVtable()
 void PLH::IATHook::Hook()
 {
 	PIMAGE_THUNK_DATA Thunk;
-	if (!FindIATFunc(m_hkModule, m_hkSrcFunc, &Thunk))
+	if (!FindIATFunc(m_hkLibraryName, m_hkSrcFunc, &Thunk))
 		return;
 
 	MEMORY_BASIC_INFORMATION mbi;
@@ -443,7 +443,7 @@ void PLH::IATHook::Hook()
 void PLH::IATHook::UnHook()
 {
 	PIMAGE_THUNK_DATA Thunk;
-	if (!FindIATFunc(m_hkModule, m_hkSrcFunc, &Thunk))
+	if (!FindIATFunc(m_hkLibraryName, m_hkSrcFunc, &Thunk))
 		return;
 
 	MEMORY_BASIC_INFORMATION mbi;
@@ -457,14 +457,14 @@ void PLH::IATHook::UnHook()
 	VirtualProtect(mbi.BaseAddress, mbi.RegionSize, mbi.Protect, &mbi.Protect);
 }
 
-void PLH::IATHook::SetupHook(char* Module, char* SrcFunc, BYTE* Dest)
+void PLH::IATHook::SetupHook(char* LibraryName, char* SrcFunc, BYTE* Dest)
 {
-	strcpy_s(m_hkModule, 32, Module);
+	strcpy_s(m_hkLibraryName, 32, LibraryName);
 	strcpy_s(m_hkSrcFunc, 32, SrcFunc);
 	m_hkDest = Dest;
 }
 
-bool PLH::IATHook::FindIATFunc(char* ModuleName, char* FuncName, PIMAGE_THUNK_DATA* pFuncThunkOut)
+bool PLH::IATHook::FindIATFunc(char* LibraryName, char* FuncName, PIMAGE_THUNK_DATA* pFuncThunkOut)
 {
 	HINSTANCE hInst = GetModuleHandle(NULL);
 	ULONG Sz;
@@ -473,15 +473,20 @@ bool PLH::IATHook::FindIATFunc(char* ModuleName, char* FuncName, PIMAGE_THUNK_DA
 
 	for (int i = 0; pImports[i].Characteristics != 0; i++)
 	{
-		char* ModuleName = (char*)ResolveRVA(hInst, pImports[i].Name);
-		if (_stricmp(ModuleName, ModuleName) != 0)
+		char* _ModuleName = (char*)ResolveRVA(hInst, pImports[i].Name);
+		if (_stricmp(_ModuleName, LibraryName) != 0)
 			continue;
 
+		//Original holds the API Names
 		PIMAGE_THUNK_DATA pOriginalThunk = (PIMAGE_THUNK_DATA)
 			ResolveRVA(hInst, pImports->OriginalFirstThunk);
+
+		//FirstThunk is overwritten by PE with API addresses, we change this
 		PIMAGE_THUNK_DATA pThunk = (PIMAGE_THUNK_DATA)
 			ResolveRVA(hInst, pImports->FirstThunk);
-		for (; pOriginalThunk->u1.Function != NULL; pOriginalThunk++)
+		
+		//Table is null terminated, increment both tables
+		for (; pOriginalThunk->u1.Function != NULL; pOriginalThunk++,pThunk++)
 		{
 			if (pOriginalThunk->u1.Ordinal & IMAGE_ORDINAL_FLAG)
 				continue;
@@ -489,9 +494,12 @@ bool PLH::IATHook::FindIATFunc(char* ModuleName, char* FuncName, PIMAGE_THUNK_DA
 			PIMAGE_IMPORT_BY_NAME pImport = (PIMAGE_IMPORT_BY_NAME)
 				ResolveRVA(hInst, pOriginalThunk->u1.AddressOfData);
 
+			//Check the name of API given by OriginalFirthThunk
 			if (_stricmp(FuncName, pImport->Name) != 0)
 				continue;
 
+			/*Name matched in OriginalFirthThunk, return FirstThunk
+			so we can changed it's address*/
 			*pFuncThunkOut = pThunk;
 			return true;
 		}

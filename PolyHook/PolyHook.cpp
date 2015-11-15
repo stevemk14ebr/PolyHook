@@ -277,8 +277,7 @@ void PLH::X64Detour::Hook()
 	*(DWORD64*)&m_Trampoline[m_hkLength + 3] = (DWORD64)m_hkSrc + m_hkLength;
 
 	// Build a far jump to the Destination function. (jmps not to address pointed at but to the value in the address)
-	DWORD flOld = 0;
-	VirtualProtect(m_hkSrc, 6, PAGE_EXECUTE_READWRITE, &flOld);
+	MemoryProtect Protector = MemoryProtect(m_hkSrc, 6, PAGE_EXECUTE_READWRITE);
 	m_hkSrc[0] = 0xFF;
 	m_hkSrc[1] = 0x25;
 	//Write 32Bit Displacement from rip
@@ -290,7 +289,6 @@ void PLH::X64Detour::Hook()
 		m_hkSrc[i] = 0x90;
 
 	FlushInstructionCache(GetCurrentProcess(), m_hkSrc, m_hkLength);
-	VirtualProtect(m_hkSrc, 6, flOld, &flOld);
 }
 
 x86_reg PLH::X64Detour::GetIpReg()
@@ -311,19 +309,15 @@ void PLH::X64Detour::FreeTrampoline()
 /*----------------------------------------------*/
 void PLH::VFuncSwap::Hook()
 {
-	DWORD OldProtection;
-	VirtualProtect(&m_hkVtable[m_hkIndex], sizeof(void*), PAGE_READWRITE, &OldProtection);
+	MemoryProtect Protector = MemoryProtect(&m_hkVtable[m_hkIndex], sizeof(void*), PAGE_READWRITE);
 	m_OrigVFunc = m_hkVtable[m_hkIndex];
 	m_hkVtable[m_hkIndex] = m_hkDest;
-	VirtualProtect(&m_hkVtable[m_hkIndex], sizeof(void*), OldProtection, &OldProtection);
 }
 
 void PLH::VFuncSwap::UnHook()
 {
-	DWORD OldProtection;
-	VirtualProtect(&m_hkVtable[m_hkIndex], sizeof(void*), PAGE_READWRITE, &OldProtection);
+	MemoryProtect Protector = MemoryProtect(&m_hkVtable[m_hkIndex], sizeof(void*), PAGE_READWRITE);
 	m_hkVtable[m_hkIndex] = m_OrigVFunc;
-	VirtualProtect(&m_hkVtable[m_hkIndex], sizeof(void*), OldProtection, &OldProtection);
 }
 
 void PLH::VFuncSwap::SetupHook(BYTE** Vtable, const int Index, BYTE* Dest)
@@ -372,8 +366,7 @@ PLH::VTableSwap::~VTableSwap()
 
 void PLH::VTableSwap::Hook()
 {
-	DWORD OldProtection;
-	VirtualProtect(m_phkClass, sizeof(void*), PAGE_READWRITE, &OldProtection);
+	MemoryProtect Protector = MemoryProtect(m_phkClass, sizeof(void*), PAGE_READWRITE);
 	m_OrigVtable = *m_phkClass;
 	m_hkOriginal = m_OrigVtable[m_hkIndex];
 	m_VFuncCount = GetVFuncCount(m_OrigVtable);
@@ -382,15 +375,12 @@ void PLH::VTableSwap::Hook()
 	memcpy(m_NewVtable, m_OrigVtable, sizeof(void*)*m_VFuncCount);
 	*m_phkClass = m_NewVtable;
 	m_NewVtable[m_hkIndex] = m_hkDest;
-	VirtualProtect(m_phkClass, sizeof(void*), OldProtection, &OldProtection);
 }
 
 void PLH::VTableSwap::UnHook()
 {
-	DWORD OldProtection;
-	VirtualProtect(m_phkClass, sizeof(void*), PAGE_READWRITE, &OldProtection);
+	MemoryProtect Protector = MemoryProtect(m_phkClass, sizeof(void*), PAGE_READWRITE);
 	*m_phkClass = m_OrigVtable;
-	VirtualProtect(m_phkClass, sizeof(void*), OldProtection, &OldProtection);
 	FreeNewVtable();
 }
 
@@ -425,47 +415,33 @@ void PLH::VTableSwap::FreeNewVtable()
 void PLH::IATHook::Hook()
 {
 	PIMAGE_THUNK_DATA Thunk;
-	if (!FindIATFunc(m_hkLibraryName, m_hkSrcFunc, &Thunk,m_hkModuleName))
+	if (!FindIATFunc(m_hkLibraryName.c_str(), m_hkSrcFunc.c_str(), &Thunk,m_hkModuleName.c_str()))
 		return;
 
-	MEMORY_BASIC_INFORMATION mbi;
-	VirtualQuery(Thunk, &mbi, sizeof(mbi));
-	VirtualProtect(mbi.BaseAddress, mbi.RegionSize, PAGE_EXECUTE_READWRITE, &mbi.Protect);
+	MemoryProtect Protector = MemoryProtect(Thunk, sizeof(ULONG_PTR), PAGE_EXECUTE_READWRITE);
 	m_pIATFuncOrig = (void*)Thunk->u1.Function;
-#ifdef _WIN64
-	Thunk->u1.Function = (ULONGLONG)m_hkDest;
-#else
-	Thunk->u1.Function = (DWORD)m_hkDest;
-#endif // _WIN64
-	VirtualProtect(mbi.BaseAddress, mbi.RegionSize, mbi.Protect, &mbi.Protect);
+	Thunk->u1.Function = (ULONG_PTR)m_hkDest;
 }
 
 void PLH::IATHook::UnHook()
 {
 	PIMAGE_THUNK_DATA Thunk;
-	if (!FindIATFunc(m_hkLibraryName, m_hkSrcFunc, &Thunk))
+	if (!FindIATFunc(m_hkLibraryName.c_str(), m_hkSrcFunc.c_str(), &Thunk))
 		return;
 
-	MEMORY_BASIC_INFORMATION mbi;
-	VirtualQuery(Thunk, &mbi, sizeof(mbi));
-	VirtualProtect(mbi.BaseAddress, mbi.RegionSize, PAGE_EXECUTE_READWRITE, &mbi.Protect);
-#ifdef _WIN64
-	Thunk->u1.Function = (ULONGLONG)m_pIATFuncOrig;
-#else
-	Thunk->u1.Function = (DWORD)m_pIATFuncOrig;
-#endif // _WIN64
-	VirtualProtect(mbi.BaseAddress, mbi.RegionSize, mbi.Protect, &mbi.Protect);
+	MemoryProtect Protector = MemoryProtect(Thunk, sizeof(ULONG_PTR), PAGE_EXECUTE_READWRITE);
+	Thunk->u1.Function = (ULONG_PTR)m_pIATFuncOrig;
 }
 
-void PLH::IATHook::SetupHook(char* LibraryName, char* SrcFunc, BYTE* Dest, char* Module)
+void PLH::IATHook::SetupHook(const char* LibraryName,const char* SrcFunc, BYTE* Dest,const char* Module)
 {
-	strcpy_s(m_hkLibraryName, 32, LibraryName);
-	strcpy_s(m_hkSrcFunc, 32, SrcFunc);
-	strcpy_s(m_hkModuleName, 32, Module);
+	m_hkLibraryName = LibraryName;
+	m_hkSrcFunc = SrcFunc;
+	m_hkModuleName = Module;
 	m_hkDest = Dest;
 }
 
-bool PLH::IATHook::FindIATFunc(char* LibraryName, char* FuncName, PIMAGE_THUNK_DATA* pFuncThunkOut,char* Module)
+bool PLH::IATHook::FindIATFunc(const char* LibraryName,const char* FuncName, PIMAGE_THUNK_DATA* pFuncThunkOut,const char* Module)
 {
 	bool UseModuleName = true;
 	if (Module == NULL || Module[0] == '\0')
@@ -510,4 +486,23 @@ bool PLH::IATHook::FindIATFunc(char* LibraryName, char* FuncName, PIMAGE_THUNK_D
 		}
 	}
 	return false;
+}
+
+/*----------------------------------------------*/
+PLH::MemoryProtect::MemoryProtect(void* Address, size_t Size, DWORD ProtectionFlags)
+{
+	m_Address = Address;
+	m_Size = Size;
+	m_Flags = ProtectionFlags;
+	Protect(m_Address, m_Size, m_Flags);
+}
+
+bool PLH::MemoryProtect::Protect(void* Address, size_t Size, DWORD ProtectionFlags)
+{
+	return VirtualProtect(Address, Size, ProtectionFlags, &m_OldProtection);
+}
+
+PLH::MemoryProtect::~MemoryProtect()
+{
+	Protect(m_Address,m_Size, m_OldProtection);
 }

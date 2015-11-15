@@ -3,6 +3,7 @@
 #include <windows.h>
 #include "../Capstone/include/capstone.h"
 #include <DbgHelp.h>
+#include <string>
 #pragma comment(lib,"Dbghelp.lib")
 #pragma comment(lib,"capstone.lib")
 namespace PLH {
@@ -224,14 +225,27 @@ namespace PLH {
 		{
 			return (T)m_pIATFuncOrig;
 		}
-		void SetupHook(char* LibraryName,char* SrcFunc, BYTE* Dest,char* Module = "");
+		void SetupHook(const char* LibraryName,const char* SrcFunc, BYTE* Dest,const char* Module = "");
 	private:
-		bool FindIATFunc(char* LibraryName, char* FuncName,PIMAGE_THUNK_DATA* pFuncThunkOut,char* Module = "");
-		char m_hkSrcFunc[32];
-		char m_hkLibraryName[32];
-		char m_hkModuleName[32];
+		bool FindIATFunc(const char* LibraryName,const char* FuncName,PIMAGE_THUNK_DATA* pFuncThunkOut,const char* Module = "");
+		std::string m_hkSrcFunc;
+		std::string m_hkLibraryName;
+		std::string m_hkModuleName;
 		BYTE* m_hkDest;
 		void* m_pIATFuncOrig;
+	};
+
+	class MemoryProtect
+	{
+	public:
+		MemoryProtect(void* Address, size_t Size, DWORD ProtectionFlags);
+		~MemoryProtect();
+	private:
+		bool Protect(void* Address, size_t Size, DWORD ProtectionFlags);
+		void* m_Address;
+		size_t m_Size;
+		DWORD m_Flags;
+		DWORD m_OldProtection;
 	};
 }//end PLH namespace
 #endif//end include guard

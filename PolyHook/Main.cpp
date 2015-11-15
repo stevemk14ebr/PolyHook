@@ -56,21 +56,21 @@ public:
 int _tmain(int argc, _TCHAR* argv[])
 {
 	///X86/x64 Detour Example
-	//PLH::Detour* Hook = new PLH::Detour();
-	//Hook->SetupHook(&NoParams, &hkNoParams); //can cast to byte* to
-	//Hook->Hook();
-	//oNoParams = Hook->GetOriginal<tNoParams>();
-	//NoParams(98);
-	//Hook->UnHook();
-	//NoParams(99);
+	PLH::Detour* Hook = new PLH::Detour();
+	Hook->SetupHook(&NoParams, &hkNoParams); //can cast to byte* to
+	Hook->Hook();
+	oNoParams = Hook->GetOriginal<tNoParams>();
+	NoParams(98);
+	Hook->UnHook();
+	NoParams(99);
 
-	PLH::IATHook* Hook = new PLH::IATHook();
+	/*PLH::IATHook* Hook = new PLH::IATHook();
 	Hook->SetupHook("kernel32.dll", "GetCurrentThreadId", (BYTE*)&hkGetCurrentThreadId);
 	Hook->Hook();
 	oGetCurrentThreadID = Hook->GetOriginal<tGetCurrentThreadId>();
 	printf("Thread ID:%d \n", GetCurrentThreadId());
 	Hook->UnHook();
-	printf("Real Thread ID:%d\n", GetCurrentThreadId());
+	printf("Real Thread ID:%d\n", GetCurrentThreadId());*/
 
 	///x86/x64 VFuncDetour Example
 	VirtualTest* ClassToHook = new VirtualTest();

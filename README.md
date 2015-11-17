@@ -28,4 +28,4 @@
 Credits to DarthTon, evolution536, Dogmatt
 
 #LICENSE:
-BSD 2-Clause (Simplified BSD)
+MIT

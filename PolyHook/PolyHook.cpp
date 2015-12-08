@@ -490,11 +490,8 @@ bool PLH::IATHook::FindIATFunc(const char* LibraryName,const char* FuncName, PIM
 
 /*----------------------------------------------*/
 std::vector<PLH::VEHHook::HookCtx> PLH::VEHHook::m_HookTargets;
-std::vector<PLH::VEHHook::HookCtx> PLH::VEHHook::m_PendingTargets;
 PLH::VEHHook::VEHHook()
 {
-	m_HookTargets = std::vector<PLH::VEHHook::HookCtx>();
-	m_PendingTargets = std::vector<PLH::VEHHook::HookCtx>();
 	void* pVEH = AddVectoredExceptionHandler(1, &PLH::VEHHook::VEHHandler);
 	if (pVEH == nullptr)
 		printf("Failed to add VEH\n");
@@ -503,22 +500,16 @@ PLH::VEHHook::VEHHook()
 void PLH::VEHHook::SetupHook(BYTE* Src, BYTE* Dest)
 {
 	HookCtx Ctx(Src, Dest);
-	m_PendingTargets.push_back(Ctx);
 	m_ThisInstance = Ctx;
 }
 
 void PLH::VEHHook::Hook()
 {
-	for (HookCtx& Ctx : m_PendingTargets)
-	{
-		//Write INT3 BreakPoint
-		MemoryProtect Protector(Ctx.m_Src, 1, PAGE_EXECUTE_READWRITE);
-		Ctx.m_OriginalByte = *Ctx.m_Src;
-		*Ctx.m_Src = 0xCC;
-
-		m_HookTargets.push_back(Ctx);
-	}
-	m_PendingTargets.clear();
+	//Write INT3 BreakPoint
+	MemoryProtect Protector(m_ThisInstance.m_Src, 1, PAGE_EXECUTE_READWRITE);
+	m_ThisInstance.m_OriginalByte = *m_ThisInstance.m_Src;
+	*m_ThisInstance.m_Src = 0xCC;
+	m_HookTargets.push_back(m_ThisInstance);
 }
 
 LONG CALLBACK PLH::VEHHook::VEHHandler(EXCEPTION_POINTERS* ExceptionInfo)

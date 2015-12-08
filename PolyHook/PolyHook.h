@@ -325,7 +325,6 @@ namespace PLH {
 	private:
 		static LONG CALLBACK VEHHandler(EXCEPTION_POINTERS* ExceptionInfo);
 		static std::vector<HookCtx> m_HookTargets;
-		static std::vector<HookCtx> m_PendingTargets;
 		HookCtx m_ThisInstance;
 	};
 

@@ -1,5 +1,5 @@
 # PolyHook - x86/x64 Hooking Library
-**Provides abstract C++ interface  for various hooking methods**
+**Provides abstract C++ 11 interface  for various hooking methods**
 
 #Hooking Methods*:
 

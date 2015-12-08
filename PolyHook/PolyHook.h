@@ -4,6 +4,7 @@
 #include "../Capstone/include/capstone.h"
 #include <DbgHelp.h>
 #include <string>
+#include <vector>
 #pragma comment(lib,"Dbghelp.lib")
 #pragma comment(lib,"capstone.lib")
 namespace PLH {
@@ -235,6 +236,41 @@ namespace PLH {
 		void* m_pIATFuncOrig;
 	};
 
+	class MemoryProtectDelay
+	{
+	public:
+		void RestoreOriginal();
+		void SetProtection(DWORD ProtectionFlags);
+		void ApplyProtection();
+		MemoryProtectDelay(void* Address, size_t Size);
+	private:
+		DWORD m_OriginalProtection;
+		DWORD m_PreviousProtection;
+		DWORD m_DesiredProtection;
+		size_t m_Size;
+		void* m_Address;
+	};
+
+	template<typename Func>
+	class FinalAction {
+	public:
+		FinalAction(Func f) :FinalActionFunc(std::move(f)) {}
+		~FinalAction()
+		{
+			FinalActionFunc();
+		}
+	private:
+		Func FinalActionFunc;
+
+		/*Uses RAII to call a final function on destruction
+		C++ 11 version of java's finally (kindof)*/
+	};
+
+	template <typename F>
+	FinalAction<F> finally(F f) {
+		return FinalAction<F>(f);
+	}
+
 	class MemoryProtect
 	{
 	public:
@@ -247,5 +283,51 @@ namespace PLH {
 		DWORD m_Flags;
 		DWORD m_OldProtection;
 	};
+
+	class VEHHook : public IHook
+	{
+	public:
+		VEHHook();
+		void Hook();
+		void UnHook() {};
+		void SetupHook(BYTE* Src, BYTE* Dest);
+		
+		template<typename T>
+		T GetOriginal()
+		{
+			return (T)m_ThisInstance.m_Src;
+		}
+
+		auto GetProtectionObject()
+		{
+			//Return an object to restore INT3 BP after return
+			return finally([&]() {
+				MemoryProtect Protector(m_ThisInstance.m_Src, 1, PAGE_EXECUTE_READWRITE);
+				*m_ThisInstance.m_Src = 0xCC;
+			});
+		}
+	protected:
+		struct HookCtx {
+			BYTE* m_Src;
+			BYTE* m_Dest;
+			BYTE m_OriginalByte;
+
+			HookCtx(BYTE* Src, BYTE* Dest)
+			{
+				m_Dest = Dest;
+				m_Src = Src;
+			}
+			HookCtx()
+			{
+
+			}
+		};
+	private:
+		static LONG CALLBACK VEHHandler(EXCEPTION_POINTERS* ExceptionInfo);
+		static std::vector<HookCtx> m_HookTargets;
+		static std::vector<HookCtx> m_PendingTargets;
+		HookCtx m_ThisInstance;
+	};
+
 }//end PLH namespace
 #endif//end include guard

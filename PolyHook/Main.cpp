@@ -11,6 +11,12 @@ tVirtNoParams oVirtNoParams;
 
 typedef void(__stdcall* tGetCurrentThreadId)();
 tGetCurrentThreadId oGetCurrentThreadID;
+
+typedef int(__stdcall* tVEH)();
+tVEH oVEHTest;
+
+PLH::VEHHook* VEHHook;
+
 DWORD __stdcall hkGetCurrentThreadId()
 {
 	printf("Called hkGetCurrentThreadID\n");
@@ -39,6 +45,20 @@ void __stdcall hkVirtNoParams(DWORD_PTR pThis)
 	return oVirtNoParams(pThis);
 }
 
+__declspec(noinline) int __stdcall VEHTest()
+{
+	printf("VEH\n");
+	return 3;
+}
+
+int __stdcall hkVEHTest()
+{
+	printf("hkVEH\n");
+	auto ProtectionObject = VEHHook->GetProtectionObject();
+
+	return oVEHTest();
+}
+
 class VirtualTest
 {
 public:
@@ -56,14 +76,15 @@ public:
 int _tmain(int argc, _TCHAR* argv[])
 {
 	///X86/x64 Detour Example
-	PLH::Detour* Hook = new PLH::Detour();
-	Hook->SetupHook(&NoParams, &hkNoParams); //can cast to byte* to
-	Hook->Hook();
-	oNoParams = Hook->GetOriginal<tNoParams>();
-	NoParams(98);
-	Hook->UnHook();
-	NoParams(99);
+	//PLH::Detour* Hook = new PLH::Detour();
+	//Hook->SetupHook(&NoParams, &hkNoParams); //can cast to byte* to
+	//Hook->Hook();
+	//oNoParams = Hook->GetOriginal<tNoParams>();
+	//NoParams(98);
+	//Hook->UnHook();
+	//NoParams(99);
 
+	///x86/x64 IAT Hook Example
 	/*PLH::IATHook* Hook = new PLH::IATHook();
 	Hook->SetupHook("kernel32.dll", "GetCurrentThreadId", (BYTE*)&hkGetCurrentThreadId);
 	Hook->Hook();
@@ -99,6 +120,12 @@ int _tmain(int argc, _TCHAR* argv[])
 	//ClassToHook->NoParamVirt();
 	//VTableHook->UnHook();
 	//ClassToHook->NoParamVirt();
+
+	VEHHook = new PLH::VEHHook();
+	VEHHook->SetupHook((BYTE*)&VEHTest,(BYTE*)&hkVEHTest);
+	VEHHook->Hook();
+	oVEHTest = VEHHook->GetOriginal<tVEH>();
+	VEHTest();
 
 	Sleep(100000);
 	return 0;

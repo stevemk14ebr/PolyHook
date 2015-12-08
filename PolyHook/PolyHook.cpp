@@ -489,6 +489,91 @@ bool PLH::IATHook::FindIATFunc(const char* LibraryName,const char* FuncName, PIM
 }
 
 /*----------------------------------------------*/
+std::vector<PLH::VEHHook::HookCtx> PLH::VEHHook::m_HookTargets;
+std::vector<PLH::VEHHook::HookCtx> PLH::VEHHook::m_PendingTargets;
+PLH::VEHHook::VEHHook()
+{
+	m_HookTargets = std::vector<PLH::VEHHook::HookCtx>();
+	m_PendingTargets = std::vector<PLH::VEHHook::HookCtx>();
+	void* pVEH = AddVectoredExceptionHandler(1, &PLH::VEHHook::VEHHandler);
+	if (pVEH == nullptr)
+		printf("Failed to add VEH\n");
+}
+
+void PLH::VEHHook::SetupHook(BYTE* Src, BYTE* Dest)
+{
+	HookCtx Ctx(Src, Dest);
+	m_PendingTargets.push_back(Ctx);
+	m_ThisInstance = Ctx;
+}
+
+void PLH::VEHHook::Hook()
+{
+	for (HookCtx& Ctx : m_PendingTargets)
+	{
+		//Write INT3 BreakPoint
+		MemoryProtect Protector(Ctx.m_Src, 1, PAGE_EXECUTE_READWRITE);
+		Ctx.m_OriginalByte = *Ctx.m_Src;
+		*Ctx.m_Src = 0xCC;
+
+		m_HookTargets.push_back(Ctx);
+	}
+	m_PendingTargets.clear();
+}
+
+LONG CALLBACK PLH::VEHHook::VEHHandler(EXCEPTION_POINTERS* ExceptionInfo)
+{
+#ifdef _WIN64
+	#define XIP Rip
+#else
+	#define XIP Eip
+#endif // _WIN64
+
+	DWORD ExceptionCode = ExceptionInfo->ExceptionRecord->ExceptionCode;
+	if (ExceptionCode == EXCEPTION_BREAKPOINT)
+	{
+		for (HookCtx& Ctx : m_HookTargets)
+		{
+			if (ExceptionInfo->ContextRecord->XIP != (DWORD_PTR)Ctx.m_Src)
+				continue;
+
+			//Remove Int3 Breakpoint
+			MemoryProtect Protector(Ctx.m_Src, 1, PAGE_EXECUTE_READWRITE);
+			*Ctx.m_Src = Ctx.m_OriginalByte;
+			
+			ExceptionInfo->ContextRecord->XIP = (DWORD_PTR) Ctx.m_Dest;
+			return EXCEPTION_CONTINUE_EXECUTION;
+		}
+	}
+	return EXCEPTION_CONTINUE_SEARCH;
+}
+
+/*----------------------------------------------*/
+PLH::MemoryProtectDelay::MemoryProtectDelay(void* Address, size_t Size)
+{
+	MEMORY_BASIC_INFORMATION mbi;
+	VirtualQuery(Address, &mbi, Size);
+	m_OriginalProtection = mbi.Protect;
+	m_Address = Address;
+	m_Size = Size;
+}
+
+void PLH::MemoryProtectDelay::SetProtection(DWORD ProtectionFlags)
+{
+	m_DesiredProtection = ProtectionFlags;
+}
+
+void PLH::MemoryProtectDelay::ApplyProtection()
+{
+	VirtualProtect(m_Address, m_Size, m_DesiredProtection, &m_PreviousProtection);
+}
+
+void PLH::MemoryProtectDelay::RestoreOriginal()
+{
+	VirtualProtect(m_Address, m_Size, m_OriginalProtection, &m_PreviousProtection);
+}
+
+/*----------------------------------------------*/
 PLH::MemoryProtect::MemoryProtect(void* Address, size_t Size, DWORD ProtectionFlags)
 {
 	m_Address = Address;

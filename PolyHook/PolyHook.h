@@ -5,6 +5,8 @@
 #include <DbgHelp.h>
 #include <string>
 #include <vector>
+#include <mutex>
+#include <algorithm>
 #pragma comment(lib,"Dbghelp.lib")
 #pragma comment(lib,"capstone.lib")
 namespace PLH {
@@ -288,15 +290,16 @@ namespace PLH {
 	{
 	public:
 		VEHHook();
-		void Hook();
-		void UnHook() {};
-		void SetupHook(BYTE* Src, BYTE* Dest);
-		
+		~VEHHook() = default;
+		virtual void Hook() override;
+		virtual void UnHook() override;
 		template<typename T>
 		T GetOriginal()
 		{
 			return (T)m_ThisInstance.m_Src;
 		}
+
+		void SetupHook(BYTE* Src, BYTE* Dest);
 
 		auto GetProtectionObject()
 		{
@@ -321,12 +324,19 @@ namespace PLH {
 			{
 
 			}
+			friend bool operator==(const HookCtx& Ctx1, const HookCtx& Ctx2)
+			{
+				if (Ctx1.m_Dest == Ctx2.m_Dest && Ctx1.m_Src == Ctx2.m_Src)
+					return true;
+				return false;
+			}
 		};
+		
 	private:
 		static LONG CALLBACK VEHHandler(EXCEPTION_POINTERS* ExceptionInfo);
 		static std::vector<HookCtx> m_HookTargets;
+		static std::mutex m_TargetMutex;
 		HookCtx m_ThisInstance;
 	};
-
 }//end PLH namespace
 #endif//end include guard

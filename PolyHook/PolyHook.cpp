@@ -490,6 +490,7 @@ bool PLH::IATHook::FindIATFunc(const char* LibraryName,const char* FuncName, PIM
 
 /*----------------------------------------------*/
 std::vector<PLH::VEHHook::HookCtx> PLH::VEHHook::m_HookTargets;
+std::mutex PLH::VEHHook::m_TargetMutex;
 PLH::VEHHook::VEHHook()
 {
 	void* pVEH = AddVectoredExceptionHandler(1, &PLH::VEHHook::VEHHandler);
@@ -505,11 +506,23 @@ void PLH::VEHHook::SetupHook(BYTE* Src, BYTE* Dest)
 
 void PLH::VEHHook::Hook()
 {
+	//Lock the TargetMutex for thread safe vector operations
+	std::lock_guard<std::mutex> m_Lock(m_TargetMutex);
+
 	//Write INT3 BreakPoint
 	MemoryProtect Protector(m_ThisInstance.m_Src, 1, PAGE_EXECUTE_READWRITE);
 	m_ThisInstance.m_OriginalByte = *m_ThisInstance.m_Src;
 	*m_ThisInstance.m_Src = 0xCC;
 	m_HookTargets.push_back(m_ThisInstance);
+}
+
+void PLH::VEHHook::UnHook()
+{
+	std::lock_guard<std::mutex> m_Lock(m_TargetMutex);
+	
+	MemoryProtect Protector(m_ThisInstance.m_Src, 1, PAGE_EXECUTE_READWRITE);
+	*m_ThisInstance.m_Src = m_ThisInstance.m_OriginalByte;
+	m_HookTargets.erase(std::remove(m_HookTargets.begin(), m_HookTargets.end(), m_ThisInstance), m_HookTargets.end());
 }
 
 LONG CALLBACK PLH::VEHHook::VEHHandler(EXCEPTION_POINTERS* ExceptionInfo)
@@ -519,6 +532,7 @@ LONG CALLBACK PLH::VEHHook::VEHHandler(EXCEPTION_POINTERS* ExceptionInfo)
 #else
 	#define XIP Eip
 #endif // _WIN64
+	std::lock_guard<std::mutex> m_Lock(m_TargetMutex);
 
 	DWORD ExceptionCode = ExceptionInfo->ExceptionRecord->ExceptionCode;
 	if (ExceptionCode == EXCEPTION_BREAKPOINT)

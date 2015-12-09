@@ -126,6 +126,8 @@ int _tmain(int argc, _TCHAR* argv[])
 	VEHHook->Hook();
 	oVEHTest = VEHHook->GetOriginal<tVEH>();
 	VEHTest();
+	VEHHook->UnHook();
+	VEHTest();
 
 	Sleep(100000);
 	return 0;

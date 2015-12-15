@@ -495,7 +495,7 @@ PLH::VEHHook::VEHHook()
 {
 	void* pVEH = AddVectoredExceptionHandler(1, &PLH::VEHHook::VEHHandler);
 	if (pVEH == nullptr)
-		printf("Failed to add VEH\n");
+		throw std::exception("PolyHook VEH: Failed to create top level handler");
 }
 
 void PLH::VEHHook::SetupHook(BYTE* Src, BYTE* Dest,VEHMethod Method)
@@ -515,6 +515,22 @@ void PLH::VEHHook::Hook()
 		MemoryProtect Protector(m_ThisInstance.m_Src, 1, PAGE_EXECUTE_READWRITE);
 		m_ThisInstance.m_OriginalByte = *m_ThisInstance.m_Src;
 		*m_ThisInstance.m_Src = 0xCC;
+	}else if (m_ThisInstance.m_Type == VEHMethod::GUARD_PAGE){
+		//Get size of pages
+		SYSTEM_INFO si;
+		GetSystemInfo(&si);
+
+		//Read current page protection
+		MEMORY_BASIC_INFORMATION mbi;
+		VirtualQuery(m_ThisInstance.m_Src, &mbi, sizeof(mbi));
+
+		//can't use Page Guards with NO_ACCESS flag
+		if (mbi.Protect & PAGE_NOACCESS)
+			throw std::exception("PolyHook VEH: Cannot hook page with NOACCESS Flag");
+
+		//Write Page Guard protection
+		DWORD OldProtection;
+		VirtualProtect(mbi.BaseAddress, si.dwPageSize, mbi.Protect | PAGE_GUARD, &OldProtection);
 	}
 	m_HookTargets.push_back(m_ThisInstance);
 }
@@ -558,6 +574,16 @@ LONG CALLBACK PLH::VEHHook::VEHHandler(EXCEPTION_POINTERS* ExceptionInfo)
 			
 			//Set instruction pointer to our callback
 			ExceptionInfo->ContextRecord->XIP = (DWORD_PTR) Ctx.m_Dest;
+			return EXCEPTION_CONTINUE_EXECUTION;
+		}
+	}else if (ExceptionCode == STATUS_GUARD_PAGE_VIOLATION) {
+		for (HookCtx& Ctx : m_HookTargets)
+		{
+			//still need to check if exception is in our page
+			if (Ctx.m_Type != VEHMethod::GUARD_PAGE)
+				continue;
+
+			ExceptionInfo->ContextRecord->XIP = (DWORD_PTR)Ctx.m_Dest;
 			return EXCEPTION_CONTINUE_EXECUTION;
 		}
 	}

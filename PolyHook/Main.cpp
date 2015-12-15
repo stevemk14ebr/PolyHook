@@ -122,7 +122,7 @@ int _tmain(int argc, _TCHAR* argv[])
 	//ClassToHook->NoParamVirt();
 
 	VEHHook = new PLH::VEHHook();
-	VEHHook->SetupHook((BYTE*)&VEHTest,(BYTE*)&hkVEHTest,PLH::VEHHook::VEHMethod::INT3_BP);
+	VEHHook->SetupHook((BYTE*)&VEHTest,(BYTE*)&hkVEHTest,PLH::VEHHook::VEHMethod::GUARD_PAGE);
 	VEHHook->Hook();
 	oVEHTest = VEHHook->GetOriginal<tVEH>();
 	VEHTest();

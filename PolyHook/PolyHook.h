@@ -309,14 +309,14 @@ namespace PLH {
 
 		auto GetProtectionObject()
 		{
-			if (m_ThisInstance.m_Type == VEHMethod::INT3_BP)
-			{
 				//Return an object to restore INT3_BP after callback is done
-				return finally([&]() {
+			return finally([&]() {
+				if (m_ThisInstance.m_Type == VEHMethod::INT3_BP)
+				{
 					MemoryProtect Protector(m_ThisInstance.m_Src, 1, PAGE_EXECUTE_READWRITE);
 					*m_ThisInstance.m_Src = 0xCC;
-				});
-			}
+				}
+			});
 		}
 	protected:
 		struct HookCtx {

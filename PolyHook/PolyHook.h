@@ -289,6 +289,12 @@ namespace PLH {
 	class VEHHook : public IHook
 	{
 	public:
+		enum class VEHMethod
+		{
+			INT3_BP,
+			GUARD_PAGE,
+			ERROR_TYPE
+		};
 		VEHHook();
 		~VEHHook() = default;
 		virtual void Hook() override;
@@ -299,39 +305,43 @@ namespace PLH {
 			return (T)m_ThisInstance.m_Src;
 		}
 
-		void SetupHook(BYTE* Src, BYTE* Dest);
+		void SetupHook(BYTE* Src, BYTE* Dest,VEHMethod Method);
 
 		auto GetProtectionObject()
 		{
-			//Return an object to restore INT3 BP after return
-			return finally([&]() {
-				MemoryProtect Protector(m_ThisInstance.m_Src, 1, PAGE_EXECUTE_READWRITE);
-				*m_ThisInstance.m_Src = 0xCC;
-			});
+			if (m_ThisInstance.m_Type == VEHMethod::INT3_BP)
+			{
+				//Return an object to restore INT3_BP after callback is done
+				return finally([&]() {
+					MemoryProtect Protector(m_ThisInstance.m_Src, 1, PAGE_EXECUTE_READWRITE);
+					*m_ThisInstance.m_Src = 0xCC;
+				});
+			}
 		}
 	protected:
 		struct HookCtx {
+			VEHMethod m_Type;
 			BYTE* m_Src;
 			BYTE* m_Dest;
 			BYTE m_OriginalByte;
 
-			HookCtx(BYTE* Src, BYTE* Dest)
+			HookCtx(BYTE* Src, BYTE* Dest,VEHMethod Method)
 			{
 				m_Dest = Dest;
 				m_Src = Src;
+				m_Type = Method;
 			}
 			HookCtx()
 			{
-
+				m_Type = VEHMethod::ERROR_TYPE;
 			}
 			friend bool operator==(const HookCtx& Ctx1, const HookCtx& Ctx2)
 			{
-				if (Ctx1.m_Dest == Ctx2.m_Dest && Ctx1.m_Src == Ctx2.m_Src)
+				if (Ctx1.m_Dest == Ctx2.m_Dest && Ctx1.m_Src == Ctx2.m_Src && Ctx1.m_Type == Ctx2.m_Type)
 					return true;
 				return false;
 			}
 		};
-		
 	private:
 		static LONG CALLBACK VEHHandler(EXCEPTION_POINTERS* ExceptionInfo);
 		static std::vector<HookCtx> m_HookTargets;

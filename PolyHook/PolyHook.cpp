@@ -498,9 +498,9 @@ PLH::VEHHook::VEHHook()
 		printf("Failed to add VEH\n");
 }
 
-void PLH::VEHHook::SetupHook(BYTE* Src, BYTE* Dest)
+void PLH::VEHHook::SetupHook(BYTE* Src, BYTE* Dest,VEHMethod Method)
 {
-	HookCtx Ctx(Src, Dest);
+	HookCtx Ctx(Src, Dest, Method);
 	m_ThisInstance = Ctx;
 }
 
@@ -539,6 +539,7 @@ LONG CALLBACK PLH::VEHHook::VEHHandler(EXCEPTION_POINTERS* ExceptionInfo)
 	{
 		for (HookCtx& Ctx : m_HookTargets)
 		{
+			//Are we at a breakpoint that we placed?
 			if (ExceptionInfo->ContextRecord->XIP != (DWORD_PTR)Ctx.m_Src)
 				continue;
 
@@ -546,6 +547,7 @@ LONG CALLBACK PLH::VEHHook::VEHHandler(EXCEPTION_POINTERS* ExceptionInfo)
 			MemoryProtect Protector(Ctx.m_Src, 1, PAGE_EXECUTE_READWRITE);
 			*Ctx.m_Src = Ctx.m_OriginalByte;
 			
+			//Set instruction pointer to our callback
 			ExceptionInfo->ContextRecord->XIP = (DWORD_PTR) Ctx.m_Dest;
 			return EXCEPTION_CONTINUE_EXECUTION;
 		}

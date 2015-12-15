@@ -509,10 +509,13 @@ void PLH::VEHHook::Hook()
 	//Lock the TargetMutex for thread safe vector operations
 	std::lock_guard<std::mutex> m_Lock(m_TargetMutex);
 
-	//Write INT3 BreakPoint
-	MemoryProtect Protector(m_ThisInstance.m_Src, 1, PAGE_EXECUTE_READWRITE);
-	m_ThisInstance.m_OriginalByte = *m_ThisInstance.m_Src;
-	*m_ThisInstance.m_Src = 0xCC;
+	if (m_ThisInstance.m_Type == VEHMethod::INT3_BP)
+	{
+		//Write INT3 BreakPoint
+		MemoryProtect Protector(m_ThisInstance.m_Src, 1, PAGE_EXECUTE_READWRITE);
+		m_ThisInstance.m_OriginalByte = *m_ThisInstance.m_Src;
+		*m_ThisInstance.m_Src = 0xCC;
+	}
 	m_HookTargets.push_back(m_ThisInstance);
 }
 
@@ -520,8 +523,11 @@ void PLH::VEHHook::UnHook()
 {
 	std::lock_guard<std::mutex> m_Lock(m_TargetMutex);
 	
-	MemoryProtect Protector(m_ThisInstance.m_Src, 1, PAGE_EXECUTE_READWRITE);
-	*m_ThisInstance.m_Src = m_ThisInstance.m_OriginalByte;
+	if (m_ThisInstance.m_Type == VEHMethod::INT3_BP)
+	{
+		MemoryProtect Protector(m_ThisInstance.m_Src, 1, PAGE_EXECUTE_READWRITE);
+		*m_ThisInstance.m_Src = m_ThisInstance.m_OriginalByte;
+	}
 	m_HookTargets.erase(std::remove(m_HookTargets.begin(), m_HookTargets.end(), m_ThisInstance), m_HookTargets.end());
 }
 
@@ -539,6 +545,9 @@ LONG CALLBACK PLH::VEHHook::VEHHandler(EXCEPTION_POINTERS* ExceptionInfo)
 	{
 		for (HookCtx& Ctx : m_HookTargets)
 		{
+			if(Ctx.m_Type != VEHMethod::INT3_BP)
+				continue;
+
 			//Are we at a breakpoint that we placed?
 			if (ExceptionInfo->ContextRecord->XIP != (DWORD_PTR)Ctx.m_Src)
 				continue;

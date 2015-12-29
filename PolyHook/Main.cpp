@@ -12,7 +12,7 @@ tVirtNoParams oVirtNoParams;
 typedef void(__stdcall* tGetCurrentThreadId)();
 tGetCurrentThreadId oGetCurrentThreadID;
 
-typedef int(__stdcall* tVEH)();
+typedef int(__stdcall* tVEH)(int intparam);
 tVEH oVEHTest;
 
 PLH::VEHHook* VEHHook;
@@ -45,18 +45,18 @@ void __stdcall hkVirtNoParams(DWORD_PTR pThis)
 	return oVirtNoParams(pThis);
 }
 
-__declspec(noinline) int __stdcall VEHTest()
+__declspec(noinline) int __stdcall VEHTest(int param)
 {
-	printf("VEH\n");
+	printf("VEH %d\n",param);
 	return 3;
 }
 
-int __stdcall hkVEHTest()
+int __stdcall hkVEHTest(int param)
 {
-	printf("hkVEH\n");
+	printf("hkVEH %d\n",param);
 	auto ProtectionObject = VEHHook->GetProtectionObject();
 
-	return oVEHTest();
+	return oVEHTest(param);
 }
 
 class VirtualTest
@@ -125,9 +125,9 @@ int _tmain(int argc, _TCHAR* argv[])
 	VEHHook->SetupHook((BYTE*)&VEHTest,(BYTE*)&hkVEHTest,PLH::VEHHook::VEHMethod::GUARD_PAGE);
 	VEHHook->Hook();
 	oVEHTest = VEHHook->GetOriginal<tVEH>();
-	VEHTest();
+	VEHTest(3);
 	VEHHook->UnHook();
-	VEHTest();
+	VEHTest(2);
 
 	Sleep(100000);
 	return 0;

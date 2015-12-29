@@ -304,7 +304,7 @@ namespace PLH {
 		{
 			return (T)m_ThisInstance.m_Src;
 		}
-
+		bool AreInSamePage(BYTE* Addr1, BYTE* Addr2);
 		void SetupHook(BYTE* Src, BYTE* Dest,VEHMethod Method);
 
 		auto GetProtectionObject()
@@ -347,6 +347,7 @@ namespace PLH {
 		static std::vector<HookCtx> m_HookTargets;
 		static std::mutex m_TargetMutex;
 		HookCtx m_ThisInstance;
+		DWORD m_PageSize;
 	};
 }//end PLH namespace
 #endif//end include guard

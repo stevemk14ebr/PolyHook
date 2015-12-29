@@ -493,9 +493,31 @@ std::vector<PLH::VEHHook::HookCtx> PLH::VEHHook::m_HookTargets;
 std::mutex PLH::VEHHook::m_TargetMutex;
 PLH::VEHHook::VEHHook()
 {
+	//Get size of pages
+	SYSTEM_INFO si;
+	GetSystemInfo(&si);
+	m_PageSize = si.dwPageSize;
+
 	void* pVEH = AddVectoredExceptionHandler(1, &PLH::VEHHook::VEHHandler);
 	if (pVEH == nullptr)
 		throw std::exception("PolyHook VEH: Failed to create top level handler");
+}
+
+bool PLH::VEHHook::AreInSamePage(BYTE* Addr1, BYTE* Addr2)
+{
+	//If VQ fails, be safe and say they are in same page
+	MEMORY_BASIC_INFORMATION mbi1;
+	if (!VirtualQuery(Addr1, &mbi1, sizeof(mbi1)))
+		return true;
+
+	MEMORY_BASIC_INFORMATION mbi2;
+	if (!VirtualQuery(Addr2, &mbi2, sizeof(mbi2)))
+		return true;
+
+	if (mbi1.BaseAddress == mbi2.BaseAddress)
+		return true;
+
+	return false;
 }
 
 void PLH::VEHHook::SetupHook(BYTE* Src, BYTE* Dest,VEHMethod Method)
@@ -516,10 +538,6 @@ void PLH::VEHHook::Hook()
 		m_ThisInstance.m_OriginalByte = *m_ThisInstance.m_Src;
 		*m_ThisInstance.m_Src = 0xCC;
 	}else if (m_ThisInstance.m_Type == VEHMethod::GUARD_PAGE){
-		//Get size of pages
-		SYSTEM_INFO si;
-		GetSystemInfo(&si);
-
 		//Read current page protection
 		MEMORY_BASIC_INFORMATION mbi;
 		VirtualQuery(m_ThisInstance.m_Src, &mbi, sizeof(mbi));
@@ -528,9 +546,12 @@ void PLH::VEHHook::Hook()
 		if (mbi.Protect & PAGE_NOACCESS)
 			throw std::exception("PolyHook VEH: Cannot hook page with NOACCESS Flag");
 
+		if (AreInSamePage((BYTE*)&PLH::VEHHook::VEHHandler, m_ThisInstance.m_Src))
+			throw std::exception("PolyHook VEH: Cannot hook page on same page as the VEH\n");
+
 		//Write Page Guard protection
 		DWORD OldProtection;
-		VirtualProtect(mbi.BaseAddress, si.dwPageSize, mbi.Protect | PAGE_GUARD, &OldProtection);
+		VirtualProtect(mbi.BaseAddress, m_PageSize, mbi.Protect | PAGE_GUARD, &OldProtection);
 	}
 	m_HookTargets.push_back(m_ThisInstance);
 }

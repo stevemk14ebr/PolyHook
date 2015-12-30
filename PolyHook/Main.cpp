@@ -51,12 +51,13 @@ __declspec(noinline) int __stdcall VEHTest(int param)
 	return 3;
 }
 
-int __stdcall hkVEHTest(int param)
+__declspec(noinline) int __stdcall hkVEHTest(int param)
 {
 	printf("hkVEH %d\n",param);
-	auto ProtectionObject = VEHHook->GetProtectionObject();
+	//auto ProtectionObject = VEHHook->GetProtectionObject();
 
-	return oVEHTest(param);
+	return 1;
+	//return oVEHTest(param);
 }
 
 class VirtualTest
@@ -125,9 +126,11 @@ int _tmain(int argc, _TCHAR* argv[])
 	VEHHook->SetupHook((BYTE*)&VEHTest,(BYTE*)&hkVEHTest,PLH::VEHHook::VEHMethod::GUARD_PAGE);
 	VEHHook->Hook();
 	oVEHTest = VEHHook->GetOriginal<tVEH>();
-	VEHTest(3);
-	VEHHook->UnHook();
-	VEHTest(2);
+	//VEHTest(3);
+	//VEHHook->UnHook();
+	//VEHTest(2);
+	printf("%s %s\n",(VEHHook->GetLastError().GetSeverity() == PLH::IError::Severity::NoError) ? "No Error":"Error",
+		VEHHook->GetLastError().GetString().c_str());
 
 	Sleep(100000);
 	return 0;

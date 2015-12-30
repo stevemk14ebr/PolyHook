@@ -47,6 +47,26 @@ namespace PLH {
 		}
 	};
 
+	class IError
+	{
+	public:
+		enum class Severity
+		{
+			Warning, //Might have an issue
+			Critical, //Definitely have an issue, but it's not serious
+			UnRecoverable, //Definitely have an issue, it's serious
+			NoError //Default
+		};
+		IError();
+		IError(Severity Sev, const std::string& Msg);
+		virtual ~IError() = default;
+		Severity GetSeverity() const;
+		std::string GetString() const;
+	private:
+		Severity m_Severity;
+		std::string m_Message;
+	};
+
 	class IHook
 	{
 	public:
@@ -54,6 +74,10 @@ namespace PLH {
 		virtual void Hook() = 0;
 		virtual void UnHook() = 0;
 		virtual ~IHook() = default;
+		void PostError(const IError& Err);
+		IError GetLastError() const;
+	protected:
+		IError m_LastError;
 	};
 
 	class IDetour :public IHook

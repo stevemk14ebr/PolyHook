@@ -1,4 +1,36 @@
 #include "PolyHook.h"
+PLH::IError::IError()
+{
+	m_Message = "";
+	m_Severity = Severity::NoError;
+}
+
+PLH::IError::IError(Severity Sev, const std::string& Msg)
+{
+	m_Severity = Sev;
+	m_Message = Msg;
+}
+
+std::string PLH::IError::GetString() const
+{
+	return m_Message;
+}
+
+PLH::IError::Severity PLH::IError::GetSeverity() const
+{
+	return m_Severity;
+}
+
+void PLH::IHook::PostError(const IError& Err)
+{
+	m_LastError = Err;
+}
+
+PLH::IError PLH::IHook::GetLastError() const
+{
+	return m_LastError;
+}
+
 PLH::IDetour::IDetour() :IHook(), m_NeedFree(false)
 {
 #ifdef _WIN64
@@ -201,6 +233,8 @@ void PLH::X86Detour::Hook()
 	FlushSrcInsCache();
 	//Revert to old protection on original function
 	VirtualProtect(m_hkSrc, m_hkLength, OldProtection, &OldProtection);
+	PostError(IError(IError::Severity::Warning, "PolyHook x86Detour: Some opcodes may not be relocated properly"));
+
 	/*Original
 	-JMP Destination
 	-NOP (extends to length of overwritten opcode)
@@ -289,6 +323,7 @@ void PLH::X64Detour::Hook()
 		m_hkSrc[i] = 0x90;
 
 	FlushInstructionCache(GetCurrentProcess(), m_hkSrc, m_hkLength);
+	PostError(IError(IError::Severity::Warning, "PolyHook x64Detour: Relocation can be out of range, and some opcodes may not be relocated properly"));
 }
 
 x86_reg PLH::X64Detour::GetIpReg()
@@ -500,7 +535,9 @@ PLH::VEHHook::VEHHook()
 
 	void* pVEH = AddVectoredExceptionHandler(1, &PLH::VEHHook::VEHHandler);
 	if (pVEH == nullptr)
-		throw std::exception("PolyHook VEH: Failed to create top level handler");
+	{
+		PostError(IError(IError::Severity::UnRecoverable, "PolyHook VEH: Failed to create top level handler"));
+	}
 }
 
 bool PLH::VEHHook::AreInSamePage(BYTE* Addr1, BYTE* Addr2)
@@ -513,6 +550,8 @@ bool PLH::VEHHook::AreInSamePage(BYTE* Addr1, BYTE* Addr2)
 	MEMORY_BASIC_INFORMATION mbi2;
 	if (!VirtualQuery(Addr2, &mbi2, sizeof(mbi2)))
 		return true;
+
+	printf("[%I64X] [%I64X]\n", mbi1.BaseAddress, mbi2.BaseAddress);
 
 	if (mbi1.BaseAddress == mbi2.BaseAddress)
 		return true;
@@ -542,16 +581,32 @@ void PLH::VEHHook::Hook()
 		MEMORY_BASIC_INFORMATION mbi;
 		VirtualQuery(m_ThisInstance.m_Src, &mbi, sizeof(mbi));
 
+		printf("About to hook\n");
+
 		//can't use Page Guards with NO_ACCESS flag
 		if (mbi.Protect & PAGE_NOACCESS)
-			throw std::exception("PolyHook VEH: Cannot hook page with NOACCESS Flag");
+		{
+			PostError(IError(IError::Severity::UnRecoverable, "PolyHook VEH: Cannot hook page with NOACCESS Flag"));
+			printf("About to hook 2\n");
+			return;
+		}
 
 		if (AreInSamePage((BYTE*)&PLH::VEHHook::VEHHandler, m_ThisInstance.m_Src))
-			throw std::exception("PolyHook VEH: Cannot hook page on same page as the VEH\n");
+		{
+			PostError(IError(IError::Severity::UnRecoverable, "PolyHook VEH: Cannot hook page on same page as the VEH\n"));
+			return;
+		}
 
+		void(PLH::VEHHook::* pHookFunc)(void) = &PLH::VEHHook::Hook;
+		if (AreInSamePage((BYTE*&)pHookFunc, m_ThisInstance.m_Src))
+		{
+			PostError(IError(IError::Severity::UnRecoverable, "PolyHook VEH: Cannot hook page on same page as the hooking function\n"));
+			return;
+		}
+		
 		//Write Page Guard protection
 		DWORD OldProtection;
-		VirtualProtect(mbi.BaseAddress, m_PageSize, mbi.Protect | PAGE_GUARD, &OldProtection);
+		VirtualProtect(m_ThisInstance.m_Src, 1 , mbi.Protect | PAGE_GUARD, &OldProtection);
 	}
 	m_HookTargets.push_back(m_ThisInstance);
 }
@@ -576,7 +631,7 @@ LONG CALLBACK PLH::VEHHook::VEHHandler(EXCEPTION_POINTERS* ExceptionInfo)
 	#define XIP Eip
 #endif // _WIN64
 	std::lock_guard<std::mutex> m_Lock(m_TargetMutex);
-
+	printf("Got Exception\n");
 	DWORD ExceptionCode = ExceptionInfo->ExceptionRecord->ExceptionCode;
 	if (ExceptionCode == EXCEPTION_BREAKPOINT)
 	{
@@ -597,17 +652,19 @@ LONG CALLBACK PLH::VEHHook::VEHHandler(EXCEPTION_POINTERS* ExceptionInfo)
 			ExceptionInfo->ContextRecord->XIP = (DWORD_PTR) Ctx.m_Dest;
 			return EXCEPTION_CONTINUE_EXECUTION;
 		}
-	}else if (ExceptionCode == STATUS_GUARD_PAGE_VIOLATION) {
+	}else if (ExceptionCode == EXCEPTION_GUARD_PAGE || ExceptionCode== EXCEPTION_ACCESS_VIOLATION) {
+		printf("Got Page Guard Violation\n");
 		for (HookCtx& Ctx : m_HookTargets)
 		{
 			//still need to check if exception is in our page
 			if (Ctx.m_Type != VEHMethod::GUARD_PAGE)
 				continue;
 
-			ExceptionInfo->ContextRecord->XIP = (DWORD_PTR)Ctx.m_Dest;
+			//ExceptionInfo->ContextRecord->XIP = (DWORD_PTR)Ctx.m_Dest;
 			return EXCEPTION_CONTINUE_EXECUTION;
 		}
 	}
+	printf("%08X\n", ExceptionCode);
 	return EXCEPTION_CONTINUE_SEARCH;
 }
 

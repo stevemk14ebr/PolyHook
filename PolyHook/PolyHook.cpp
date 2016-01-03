@@ -244,13 +244,14 @@ void PLH::X86Detour::Hook()
 	DWORD OldProtection;
 
 	m_hkLength = CalculateLength(m_hkSrc, 5);
+	int OrigCopiedLength = m_hkLength;
 	if (m_hkLength == 0)
 	{
 		printf("Function to small to hook\n");
 		return;
 	}
 
-	m_Trampoline = new BYTE[m_hkLength + 5];   //Allocate Space for original plus 5 to jump back
+	m_Trampoline = new BYTE[m_hkLength + 30];   //Allocate Space for original plus extra to jump back and for jmp table
 	VirtualProtect(m_Trampoline, m_hkLength + 5, PAGE_EXECUTE_READWRITE, &OldProtection); //Allow Execution
 	m_NeedFree = true;
 
@@ -264,7 +265,7 @@ void PLH::X86Detour::Hook()
 	WriteRelativeJMP((DWORD)m_hkSrc, (DWORD)m_hkDest);
 
 	//Write nops over bytes of overwritten instructions
-	for (int i = 5; i < m_hkLength; i++)
+	for (int i = 5; i < OrigCopiedLength; i++)
 		m_hkSrc[i] = 0x90;
 	FlushSrcInsCache();
 	//Revert to old protection on original function
@@ -282,7 +283,11 @@ void PLH::X86Detour::Hook()
 
 	Trampoline
 	-Execute Overwritten Opcodes
-	-JMP Rest of function (in original)
+	-Patch original relative jmps to point to jump table (JE Jumptable entry 1)
+	-JMP to rest of function (in original)
+	-*BEGIN JUMPTABLE*
+	-1)JMP to location of relative jmp one
+	-2)...continue pattern for all relative jmps
 	*/
 }
 
@@ -349,6 +354,7 @@ void PLH::X64Detour::Hook()
 	//Decide which jmp type to use based on function size
 	bool UseRelativeJmp = false;
 	m_hkLength = CalculateLength(m_hkSrc, 16); //More stable 16 byte jmp
+	int CopiedOrigLength = m_hkLength; //We modify hkLength in Relocation routine
 	if (m_hkLength == 0)
 	{
 		UseRelativeJmp = true;
@@ -381,7 +387,7 @@ void PLH::X64Detour::Hook()
 		WriteAbsoluteJMP((DWORD64)m_hkSrc, (DWORD64)m_hkDest);
 	}
 	//Nop Extra bytes from overwritten opcode
-	for (int i = HookSize; i < m_hkLength; i++)
+	for (int i = HookSize; i < CopiedOrigLength; i++)
 		m_hkSrc[i] = 0x90;
 
 	FlushInstructionCache(GetCurrentProcess(), m_hkSrc, m_hkLength);

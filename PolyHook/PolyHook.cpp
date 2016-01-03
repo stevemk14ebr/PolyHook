@@ -355,7 +355,7 @@ void PLH::X64Detour::Hook()
 		m_hkLength = CalculateLength(m_hkSrc, 6); //Smaller, less safe 6 byte (jmp could be out of bounds)
 		if (m_hkLength == 0)
 		{
-			PostError(IError(IError::Severity::UnRecoverable, "Function to small to hook"));
+			PostError(IError(IError::Severity::UnRecoverable, "PolyHook x64Detour: Function to small to hook"));
 			return;
 		}
 	}

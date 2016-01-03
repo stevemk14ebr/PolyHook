@@ -37,6 +37,57 @@ namespace PLH {
 				return DISP::D_INVALID;
 			}
 		}
+		bool IsConditionalJump(const std::string& mneumonic)
+		{
+			//http://unixwiz.net/techtips/x86-jumps.html
+			if (mneumonic == "jo" || mneumonic == "jno")
+				return true;
+
+			if (mneumonic == "js" || mneumonic == "jns")
+				return true;
+
+			if (mneumonic == "je" || mneumonic == "jz")
+				return true;
+
+			if (mneumonic == "jne" || mneumonic == "jnz")
+				return true;
+
+			if (mneumonic == "jb" || mneumonic == "jnae" || mneumonic == "jc")
+				return true;
+
+			if (mneumonic == "jnb" || mneumonic == "jae" || mneumonic == "jnc")
+				return true;
+
+			if (mneumonic == "jbe" || mneumonic == "jna")
+				return true;
+
+			if (mneumonic == "ja" || mneumonic == "jnbe")
+				return true;
+
+			if (mneumonic == "jl" || mneumonic == "jnge")
+				return true;
+
+			if (mneumonic == "jge" || mneumonic == "jnl")
+				return true;
+
+			if (mneumonic == "jle" || mneumonic == "jng")
+				return true;
+
+			if (mneumonic == "jg" || mneumonic == "jnle")
+				return true;
+
+			if (mneumonic == "jp" || mneumonic == "jpe")
+				return true;
+
+			if (mneumonic == "jnp" || mneumonic == "jpo")
+				return true;
+
+			if (mneumonic == "jcxz" || mneumonic == "jecxz")
+				return true;
+
+			return false;
+		}
+
 		template<typename T>
 		T GetDisplacement(BYTE* Instruction, const uint32_t Offset)
 		{
@@ -108,10 +159,13 @@ namespace PLH {
 			return To - (From + InsSize);
 		}
 		DWORD CalculateLength(BYTE* Src, DWORD NeededLength);
-		void RelocateASM(BYTE* Code, DWORD64 CodeSize, DWORD64 From, DWORD64 To);
+		void RelocateASM(BYTE* Code, DWORD& CodeSize, DWORD64 From, DWORD64 To);
 		void _Relocate(cs_insn* CurIns, DWORD64 From, DWORD64 To, const uint8_t DispSize, const uint8_t DispOffset);
+		void RelocateConditionalJMP(cs_insn* CurIns, DWORD& CodeSize, DWORD64 From, DWORD64 To, const uint8_t DispSize, const uint8_t DispOffset);
 		virtual x86_reg GetIpReg() = 0;
 		virtual void FreeTrampoline() = 0;
+		virtual void WriteJMP(DWORD_PTR From, DWORD_PTR To) = 0;
+		virtual int GetJMPSize() = 0;
 		void FlushSrcInsCache();
 		void Initialize(cs_mode Mode);
 		csh m_CapstoneHandle;
@@ -138,6 +192,10 @@ namespace PLH {
 	protected:
 		virtual x86_reg GetIpReg() override;
 		virtual void FreeTrampoline();
+		virtual void WriteJMP(DWORD_PTR From, DWORD_PTR To);
+		virtual int GetJMPSize();
+	private:
+		void WriteRelativeJMP(DWORD Destination, DWORD JMPDestination);
 	};
 #else
 #define Detour X64Detour
@@ -153,6 +211,10 @@ namespace PLH {
 	protected:
 		virtual x86_reg GetIpReg() override;
 		virtual void FreeTrampoline() override;
+		virtual void WriteJMP(DWORD_PTR From, DWORD_PTR To) override;
+		virtual int GetJMPSize() override;
+	private:
+		void WriteAbsoluteJMP(DWORD64 Destination, DWORD64 JMPDestination);
 	};
 #endif //END _WIN64 IFDEF
 

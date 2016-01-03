@@ -3,8 +3,8 @@
 #include <tchar.h>
 #include "PolyHook.h"
 
-typedef int(__stdcall* tNoParams)(int intparam);
-tNoParams oNoParams;
+typedef int(__stdcall* tMessageBoxA)(HWND hWnd,LPCTSTR lpText,LPCTSTR lpCaption,UINT uType);
+tMessageBoxA oMessageBoxA;
 
 typedef void(__stdcall* tVirtNoParams)(DWORD_PTR pThis);
 tVirtNoParams oVirtNoParams;
@@ -23,20 +23,10 @@ DWORD __stdcall hkGetCurrentThreadId()
 	return 1337;
 }
 
-__declspec(noinline) int __stdcall NoParams(int intparam)
-{
-	printf("Hello\n");
-	volatile int x = 0;
-	x += 1;
-	x /= 2;
-
-	return intparam + 1;
-}
-
-int __stdcall hkNoParams(int intparam)
+int __stdcall hkMessageBoxA(HWND hWnd, LPCTSTR lpText, LPCTSTR lpCaption, UINT uType)
 {
 	printf("In Hook\n");
-	return oNoParams(intparam);
+	return oMessageBoxA(hWnd, lpText, lpCaption, uType);
 }
 
 void __stdcall hkVirtNoParams(DWORD_PTR pThis)
@@ -77,13 +67,13 @@ public:
 int _tmain(int argc, _TCHAR* argv[])
 {
 	///X86/x64 Detour Example
-	//PLH::Detour* Hook = new PLH::Detour();
-	//Hook->SetupHook(&NoParams, &hkNoParams); //can cast to byte* to
-	//Hook->Hook();
-	//oNoParams = Hook->GetOriginal<tNoParams>();
-	//NoParams(98);
+	PLH::Detour* Hook = new PLH::Detour();
+	Hook->SetupHook((BYTE*)&MessageBoxA,(BYTE*) &hkMessageBoxA); //can cast to byte* to
+	Hook->Hook();
+	oMessageBoxA = Hook->GetOriginal<tMessageBoxA>();
+	MessageBoxA(NULL, "Message", "Sample", MB_OK);
 	//Hook->UnHook();
-	//NoParams(99);
+	//MessageBoxA(NULL, "Message", "Sample", MB_OK);
 
 	///x86/x64 IAT Hook Example
 	/*PLH::IATHook* Hook = new PLH::IATHook();
@@ -122,15 +112,15 @@ int _tmain(int argc, _TCHAR* argv[])
 	//VTableHook->UnHook();
 	//ClassToHook->NoParamVirt();
 
-	VEHHook = new PLH::VEHHook();
+	/*VEHHook = new PLH::VEHHook();
 	VEHHook->SetupHook((BYTE*)&VEHTest,(BYTE*)&hkVEHTest,PLH::VEHHook::VEHMethod::GUARD_PAGE);
 	VEHHook->Hook();
-	oVEHTest = VEHHook->GetOriginal<tVEH>();
+	oVEHTest = VEHHook->GetOriginal<tVEH>();*/
 	//VEHTest(3);
 	//VEHHook->UnHook();
 	//VEHTest(2);
-	printf("%s %s\n",(VEHHook->GetLastError().GetSeverity() == PLH::IError::Severity::NoError) ? "No Error":"Error",
-		VEHHook->GetLastError().GetString().c_str());
+	/*printf("%s %s\n",(VEHHook->GetLastError().GetSeverity() == PLH::IError::Severity::NoError) ? "No Error":"Error",
+		VEHHook->GetLastError().GetString().c_str());*/
 
 	Sleep(100000);
 	return 0;

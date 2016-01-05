@@ -129,18 +129,16 @@ void PLH::IDetour::RelocateASM(BYTE* Code, DWORD& CodeSize, DWORD64 From, DWORD6
 				if (x86->op_count > 1) //exclude types like sub rsp,0x20
 					continue;
 
-				bool IsConditionalJump = m_ASMInfo.IsConditionalJump(CurIns->mnemonic);
-
-				//types like push 0x20 slip through, check mnemonic
 				char* mnemonic = CurIns->mnemonic;
-				if (strcmp(mnemonic, "call") != 0 && strcmp(mnemonic, "jmp") != 0 && !IsConditionalJump) //probably more types than just these, update list as they're found
-					continue;
-
-				if (IsConditionalJump)
+				if (m_ASMInfo.IsConditionalJump(mnemonic))
 				{
 					RelocateConditionalJMP(CurIns, CodeSize, From, To, x86->offsets.imm_size, x86->offsets.imm_offset);
 					continue;
 				}
+
+				//types like push 0x20 slip through, check mnemonic
+				if (strcmp(mnemonic, "call") != 0 && strcmp(mnemonic, "jmp") != 0) //probably more types than just these, update list as they're found
+					continue;
 
 				_Relocate(CurIns, From, To, x86->offsets.imm_size, x86->offsets.imm_offset);
 			}
@@ -166,19 +164,19 @@ void PLH::IDetour::_Relocate(cs_insn* CurIns, DWORD64 From, DWORD64 To, const ui
 {
 	printf("Relocating...\n");
 	ASMHelper::DISP DispType = m_ASMInfo.GetDisplacementType(DispSize);
-	if (DispType == ASMHelper::DISP::D_BYTE)
+	if (DispType == ASMHelper::DISP::D_INT8)
 	{
 		int8_t Disp = m_ASMInfo.GetDisplacement<int8_t>(CurIns->bytes, DispOffset);
 		Disp -= (To - From);
 		*(int8_t*)(CurIns->address + DispOffset) = Disp;
-	}else if (DispType == ASMHelper::DISP::D_WORD) {
+	}else if (DispType == ASMHelper::DISP::D_INT16) {
 		int16_t Disp = Disp = m_ASMInfo.GetDisplacement<int16_t>(CurIns->bytes, DispOffset);
 		Disp -= (To - From);
-		*(short*)(CurIns->address + DispOffset) = Disp;
-	}else if (DispType == ASMHelper::DISP::D_DWORD) {
+		*(int16_t*)(CurIns->address + DispOffset) = Disp;
+	}else if (DispType == ASMHelper::DISP::D_INT32) {
 		int32_t Disp = Disp = m_ASMInfo.GetDisplacement<int32_t>(CurIns->bytes, DispOffset);
 		Disp -= (To - From);
-		*(long*)(CurIns->address + DispOffset) = Disp;
+		*(int32_t*)(CurIns->address + DispOffset) = Disp;
 	}
 }
 
@@ -203,27 +201,29 @@ void PLH::IDetour::RelocateConditionalJMP(cs_insn* CurIns, DWORD& CodeSize, DWOR
 	*/
 	ASMHelper::DISP DispType = m_ASMInfo.GetDisplacementType(DispSize);
 	DWORD64 TrampolineEnd = To + CodeSize;
-	if (DispType == ASMHelper::DISP::D_BYTE)
+	if (DispType == ASMHelper::DISP::D_INT8)
 	{
 		int8_t Disp = m_ASMInfo.GetDisplacement<int8_t>(CurIns->bytes, DispOffset);
 		DWORD64 OriginalDestination = CurIns->address + (Disp - (To - From)) + CurIns->size;
 		WriteJMP(TrampolineEnd, OriginalDestination);
 		Disp = CalculateRelativeDisplacement<int8_t>(CurIns->address, (DWORD64)TrampolineEnd, CurIns->size); //set relative jmp to go to our absolute
 		*(int8_t*)(CurIns->address + DispOffset) = Disp;
-	}else if (DispType == ASMHelper::DISP::D_WORD) {
+		CodeSize += GetJMPSize();
+	}else if (DispType == ASMHelper::DISP::D_INT16) {
 		int16_t Disp = Disp = m_ASMInfo.GetDisplacement<int16_t>(CurIns->bytes, DispOffset);
 		DWORD64 OriginalDestination = CurIns->address + (Disp - (To - From)) + CurIns->size;
 		WriteJMP(TrampolineEnd, OriginalDestination);
-		Disp = CalculateRelativeDisplacement<short>(CurIns->address, (DWORD64)TrampolineEnd, CurIns->size);
-		*(short*)(CurIns->address + DispOffset) = Disp;
-	}else if (DispType == ASMHelper::DISP::D_DWORD) {
+		Disp = CalculateRelativeDisplacement<int16_t>(CurIns->address, (DWORD64)TrampolineEnd, CurIns->size);
+		*(int16_t*)(CurIns->address + DispOffset) = Disp;
+		CodeSize += GetJMPSize();
+	}else if (DispType == ASMHelper::DISP::D_INT32) {
 		int32_t Disp = Disp = m_ASMInfo.GetDisplacement<int32_t>(CurIns->bytes, DispOffset);
 		DWORD64 OriginalDestination = CurIns->address + (Disp - (To - From)) + CurIns->size;
 		WriteJMP(TrampolineEnd, OriginalDestination);
-		Disp = CalculateRelativeDisplacement<long>(CurIns->address, (DWORD64)TrampolineEnd, CurIns->size);
-		*(long*)(CurIns->address + DispOffset) = Disp;
+		Disp = CalculateRelativeDisplacement<int32_t>(CurIns->address, (DWORD64)TrampolineEnd, CurIns->size);
+		*(int32_t*)(CurIns->address + DispOffset) = Disp;
+		CodeSize += GetJMPSize();
 	}
-	CodeSize += GetJMPSize();
 }
 
 /*----------------------------------------------*/

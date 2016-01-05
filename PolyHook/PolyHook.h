@@ -15,10 +15,10 @@ namespace PLH {
 	public:
 		enum DISP
 		{
-			D_QWORD = 8,
-			D_DWORD = 4,
-			D_WORD = 2,
-			D_BYTE = 1,
+			D_INT64 = 8,
+			D_INT32 = 4,
+			D_INT16 = 2,
+			D_INT8 = 1,
 			D_INVALID = -1
 		};
 		DISP GetDisplacementType(const uint8_t DispVal)
@@ -26,13 +26,13 @@ namespace PLH {
 			switch (DispVal)
 			{
 			case 1:
-				return DISP::D_BYTE;
+				return DISP::D_INT8;
 			case 2:
-				return DISP::D_WORD;
+				return DISP::D_INT16;
 			case 4:
-				return DISP::D_DWORD;
+				return DISP::D_INT32;
 			case 8:
-				return DISP::D_QWORD;
+				return DISP::D_INT64;
 			default:
 				return DISP::D_INVALID;
 			}

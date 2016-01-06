@@ -11,12 +11,12 @@ PLH::IError::IError(Severity Sev, const std::string& Msg)
 	m_Message = Msg;
 }
 
-std::string PLH::IError::GetString() const
+const std::string PLH::IError::GetString() const
 {
 	return m_Message;
 }
 
-PLH::IError::Severity PLH::IError::GetSeverity() const
+const PLH::IError::Severity PLH::IError::GetSeverity() const
 {
 	return m_Severity;
 }
@@ -646,7 +646,7 @@ bool PLH::VEHHook::AreInSamePage(BYTE* Addr1, BYTE* Addr2)
 void PLH::VEHHook::SetupHook(BYTE* Src, BYTE* Dest,VEHMethod Method)
 {
 	HookCtx Ctx(Src, Dest, Method);
-	m_ThisInstance = Ctx;
+	m_ThisCtx = Ctx;
 }
 
 void PLH::VEHHook::Hook()
@@ -654,27 +654,26 @@ void PLH::VEHHook::Hook()
 	//Lock the TargetMutex for thread safe vector operations
 	std::lock_guard<std::mutex> m_Lock(m_TargetMutex);
 
-	if (m_ThisInstance.m_Type == VEHMethod::INT3_BP)
+	if (m_ThisCtx.m_Type == VEHMethod::INT3_BP)
 	{
 		//Write INT3 BreakPoint
-		MemoryProtect Protector(m_ThisInstance.m_Src, 1, PAGE_EXECUTE_READWRITE);
-		m_ThisInstance.m_OriginalByte = *m_ThisInstance.m_Src;
-		*m_ThisInstance.m_Src = 0xCC;
-		m_HookTargets.push_back(m_ThisInstance);
-	}else if (m_ThisInstance.m_Type == VEHMethod::GUARD_PAGE){
+		MemoryProtect Protector(m_ThisCtx.m_Src, 1, PAGE_EXECUTE_READWRITE);
+		m_ThisCtx.m_OriginalByte = *m_ThisCtx.m_Src;
+		*m_ThisCtx.m_Src = 0xCC;
+		m_HookTargets.push_back(m_ThisCtx);
+	}else if (m_ThisCtx.m_Type == VEHMethod::GUARD_PAGE){
 		//Read current page protection
 		MEMORY_BASIC_INFORMATION mbi;
-		VirtualQuery(m_ThisInstance.m_Src, &mbi, sizeof(mbi));
+		VirtualQuery(m_ThisCtx.m_Src, &mbi, sizeof(mbi));
 
 		//can't use Page Guards with NO_ACCESS flag
 		if (mbi.Protect & PAGE_NOACCESS)
 		{
 			PostError(IError(IError::Severity::UnRecoverable, "PolyHook VEH: Cannot hook page with NOACCESS Flag"));
-			printf("Page has no Access Flag\n");
 			return;
 		}
 
-		if (AreInSamePage((BYTE*)&PLH::VEHHook::VEHHandler, m_ThisInstance.m_Src))
+		if (AreInSamePage((BYTE*)&PLH::VEHHook::VEHHandler, m_ThisCtx.m_Src))
 		{
 			PostError(IError(IError::Severity::UnRecoverable, "PolyHook VEH: Cannot hook page on same page as the VEH\n"));
 			return;
@@ -682,17 +681,17 @@ void PLH::VEHHook::Hook()
 
 		//!!!!COMPILER SPECIFIC HACK HERE!!!!!
 		void(PLH::VEHHook::* pHookFunc)(void) = &PLH::VEHHook::Hook;
-		if (AreInSamePage((BYTE*&)pHookFunc, m_ThisInstance.m_Src))
+		if (AreInSamePage((BYTE*&)pHookFunc, m_ThisCtx.m_Src))
 		{
 			PostError(IError(IError::Severity::UnRecoverable, "PolyHook VEH: Cannot hook page on same page as the hooking function\n"));
 			return;
 		}
 		
-		m_HookTargets.push_back(m_ThisInstance);
+		m_HookTargets.push_back(m_ThisCtx);
 
 		//Write Page Guard protection
 		DWORD OldProtection;
-		VirtualProtect(m_ThisInstance.m_Src, 1 ,PAGE_EXECUTE_READWRITE | PAGE_GUARD, &OldProtection);
+		VirtualProtect(m_ThisCtx.m_Src, 1 ,PAGE_EXECUTE_READWRITE | PAGE_GUARD, &OldProtection);
 	}
 }
 
@@ -700,14 +699,14 @@ void PLH::VEHHook::UnHook()
 {
 	std::lock_guard<std::mutex> m_Lock(m_TargetMutex);
 	
-	if (m_ThisInstance.m_Type == VEHMethod::INT3_BP)
+	if (m_ThisCtx.m_Type == VEHMethod::INT3_BP)
 	{
-		MemoryProtect Protector(m_ThisInstance.m_Src, 1, PAGE_EXECUTE_READWRITE);
-		*m_ThisInstance.m_Src = m_ThisInstance.m_OriginalByte;
-	}else if (m_ThisInstance.m_Type == VEHMethod::GUARD_PAGE) {
-		BYTE GenerateExceptionRead = *m_ThisInstance.m_Src;
+		MemoryProtect Protector(m_ThisCtx.m_Src, 1, PAGE_EXECUTE_READWRITE);
+		*m_ThisCtx.m_Src = m_ThisCtx.m_OriginalByte;
+	}else if (m_ThisCtx.m_Type == VEHMethod::GUARD_PAGE) {
+		BYTE GenerateExceptionRead = *m_ThisCtx.m_Src;
 	}
-	m_HookTargets.erase(std::remove(m_HookTargets.begin(), m_HookTargets.end(), m_ThisInstance), m_HookTargets.end());
+	m_HookTargets.erase(std::remove(m_HookTargets.begin(), m_HookTargets.end(), m_ThisCtx), m_HookTargets.end());
 }
 
 LONG CALLBACK PLH::VEHHook::VEHHandler(EXCEPTION_POINTERS* ExceptionInfo)

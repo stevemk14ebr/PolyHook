@@ -111,8 +111,8 @@ namespace PLH {
 		IError();
 		IError(Severity Sev, const std::string& Msg);
 		virtual ~IError() = default;
-		Severity GetSeverity() const;
-		std::string GetString() const;
+		const Severity GetSeverity() const;
+		const std::string GetString() const;
 	private:
 		Severity m_Severity;
 		std::string m_Message;
@@ -375,7 +375,7 @@ namespace PLH {
 		template<typename T>
 		T GetOriginal()
 		{
-			return (T)m_ThisInstance.m_Src;
+			return (T)m_ThisCtx.m_Src;
 		}
 		void SetupHook(BYTE* Src, BYTE* Dest,VEHMethod Method);
 
@@ -383,13 +383,13 @@ namespace PLH {
 		{
 				//Return an object to restore INT3_BP after callback is done
 			return finally([&]() {
-				if (m_ThisInstance.m_Type == VEHMethod::INT3_BP)
+				if (m_ThisCtx.m_Type == VEHMethod::INT3_BP)
 				{
-					MemoryProtect Protector(m_ThisInstance.m_Src, 1, PAGE_EXECUTE_READWRITE);
-					*m_ThisInstance.m_Src = 0xCC;
-				}else if (m_ThisInstance.m_Type == VEHMethod::GUARD_PAGE) {
+					MemoryProtect Protector(m_ThisCtx.m_Src, 1, PAGE_EXECUTE_READWRITE);
+					*m_ThisCtx.m_Src = 0xCC;
+				}else if (m_ThisCtx.m_Type == VEHMethod::GUARD_PAGE) {
 					DWORD OldProtection;
-					VirtualProtect(m_ThisInstance.m_Src, 1, PAGE_EXECUTE_READWRITE | PAGE_GUARD, &OldProtection);
+					VirtualProtect(m_ThisCtx.m_Src, 1, PAGE_EXECUTE_READWRITE | PAGE_GUARD, &OldProtection);
 				}
 			});
 		}
@@ -422,7 +422,7 @@ namespace PLH {
 		static LONG CALLBACK VEHHandler(EXCEPTION_POINTERS* ExceptionInfo);
 		static std::vector<HookCtx> m_HookTargets;
 		static std::mutex m_TargetMutex;
-		HookCtx m_ThisInstance;
+		HookCtx m_ThisCtx;
 		DWORD m_PageSize;
 	};
 }//end PLH namespace

@@ -637,8 +637,6 @@ bool PLH::VEHHook::AreInSamePage(BYTE* Addr1, BYTE* Addr2)
 	if (!VirtualQuery(Addr2, &mbi2, sizeof(mbi2)))
 		return true;
 
-	printf("[%I64X] [%I64X]\n", mbi1.BaseAddress, mbi2.BaseAddress);
-
 	if (mbi1.BaseAddress == mbi2.BaseAddress)
 		return true;
 
@@ -662,18 +660,19 @@ void PLH::VEHHook::Hook()
 		MemoryProtect Protector(m_ThisInstance.m_Src, 1, PAGE_EXECUTE_READWRITE);
 		m_ThisInstance.m_OriginalByte = *m_ThisInstance.m_Src;
 		*m_ThisInstance.m_Src = 0xCC;
+		m_HookTargets.push_back(m_ThisInstance);
 	}else if (m_ThisInstance.m_Type == VEHMethod::GUARD_PAGE){
 		//Read current page protection
 		MEMORY_BASIC_INFORMATION mbi;
 		VirtualQuery(m_ThisInstance.m_Src, &mbi, sizeof(mbi));
 
-		printf("About to hook\n");
+		printf("Performing checks...\n");
 
 		//can't use Page Guards with NO_ACCESS flag
 		if (mbi.Protect & PAGE_NOACCESS)
 		{
 			PostError(IError(IError::Severity::UnRecoverable, "PolyHook VEH: Cannot hook page with NOACCESS Flag"));
-			printf("About to hook 2\n");
+			printf("Page has no Access Flag\n");
 			return;
 		}
 
@@ -683,6 +682,7 @@ void PLH::VEHHook::Hook()
 			return;
 		}
 
+		//!!!!COMPILER SPECIFIC HACK HERE!!!!!
 		void(PLH::VEHHook::* pHookFunc)(void) = &PLH::VEHHook::Hook;
 		if (AreInSamePage((BYTE*&)pHookFunc, m_ThisInstance.m_Src))
 		{
@@ -690,11 +690,13 @@ void PLH::VEHHook::Hook()
 			return;
 		}
 		
+		printf("Checks:OK...About to hook\n");
+		m_HookTargets.push_back(m_ThisInstance);
+
 		//Write Page Guard protection
 		DWORD OldProtection;
-		VirtualProtect(m_ThisInstance.m_Src, 1 , mbi.Protect | PAGE_GUARD, &OldProtection);
+		VirtualProtect(m_ThisInstance.m_Src, 1 ,PAGE_EXECUTE_READWRITE | PAGE_GUARD, &OldProtection);
 	}
-	m_HookTargets.push_back(m_ThisInstance);
 }
 
 void PLH::VEHHook::UnHook()
@@ -717,7 +719,7 @@ LONG CALLBACK PLH::VEHHook::VEHHandler(EXCEPTION_POINTERS* ExceptionInfo)
 	#define XIP Eip
 #endif // _WIN64
 	std::lock_guard<std::mutex> m_Lock(m_TargetMutex);
-	printf("Got Exception\n");
+
 	DWORD ExceptionCode = ExceptionInfo->ExceptionRecord->ExceptionCode;
 	if (ExceptionCode == EXCEPTION_BREAKPOINT)
 	{
@@ -738,9 +740,7 @@ LONG CALLBACK PLH::VEHHook::VEHHandler(EXCEPTION_POINTERS* ExceptionInfo)
 			ExceptionInfo->ContextRecord->XIP = (DWORD_PTR) Ctx.m_Dest;
 			return EXCEPTION_CONTINUE_EXECUTION;
 		}
-	}else if (ExceptionCode == EXCEPTION_GUARD_PAGE || ExceptionCode== EXCEPTION_ACCESS_VIOLATION) {
-		printf("Got Page Guard Violation\n");
-		
+	}else if (ExceptionCode == EXCEPTION_GUARD_PAGE) {
 		for (HookCtx& Ctx : m_HookTargets)
 		{
 			//still need to check if exception is in our page
@@ -753,9 +753,7 @@ LONG CALLBACK PLH::VEHHook::VEHHandler(EXCEPTION_POINTERS* ExceptionInfo)
 			if (ExceptionInfo->ContextRecord->XIP != (DWORD_PTR)Ctx.m_Src)
 				return EXCEPTION_CONTINUE_EXECUTION;
 			else
-				printf("Would Call handler here\n");
-
-			//ExceptionInfo->ContextRecord->XIP = (DWORD_PTR)Ctx.m_Dest;
+				ExceptionInfo->ContextRecord->XIP = (DWORD_PTR)Ctx.m_Dest;
 			return EXCEPTION_CONTINUE_EXECUTION;
 		}
 	}

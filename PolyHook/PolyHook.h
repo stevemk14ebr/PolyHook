@@ -402,6 +402,9 @@ namespace PLH {
 				{
 					MemoryProtect Protector(m_ThisInstance.m_Src, 1, PAGE_EXECUTE_READWRITE);
 					*m_ThisInstance.m_Src = 0xCC;
+				}else if (m_ThisInstance.m_Type == VEHMethod::GUARD_PAGE) {
+					DWORD OldProtection;
+					VirtualProtect(m_ThisInstance.m_Src, 1, PAGE_EXECUTE_READWRITE | PAGE_GUARD, &OldProtection);
 				}
 			});
 		}

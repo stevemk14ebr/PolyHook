@@ -37,17 +37,16 @@ void __stdcall hkVirtNoParams(DWORD_PTR pThis)
 
 __declspec(noinline) int __stdcall VEHTest(int param)
 {
-	printf("VEH %d\n",param);
+	printf("VEHFunc %d\n",param);
 	return 3;
 }
 
 __declspec(noinline) int __stdcall hkVEHTest(int param)
 {
 	printf("hkVEH %d\n",param);
-	//auto ProtectionObject = VEHHook->GetProtectionObject();
+	auto ProtectionObject = VEHHook->GetProtectionObject();
 
-	return 1;
-	//return oVEHTest(param);
+	return oVEHTest(param);
 }
 
 class VirtualTest
@@ -67,13 +66,13 @@ public:
 int _tmain(int argc, _TCHAR* argv[])
 {
 	///X86/x64 Detour Example
-	PLH::Detour* Hook = new PLH::Detour();
-	Hook->SetupHook((BYTE*)&MessageBoxA,(BYTE*) &hkMessageBoxA); //can cast to byte* to
-	Hook->Hook();
-	oMessageBoxA = Hook->GetOriginal<tMessageBoxA>();
-	MessageBoxA(NULL, "Message", "Sample", MB_OK);
-	Hook->UnHook();
-	MessageBoxA(NULL, "Message", "Sample", MB_OK);
+	//PLH::Detour* Hook = new PLH::Detour();
+	//Hook->SetupHook((BYTE*)&MessageBoxA,(BYTE*) &hkMessageBoxA); //can cast to byte* to
+	//Hook->Hook();
+	//oMessageBoxA = Hook->GetOriginal<tMessageBoxA>();
+	//MessageBoxA(NULL, "Message", "Sample", MB_OK);
+	//Hook->UnHook();
+	//MessageBoxA(NULL, "Message", "Sample", MB_OK);
 
 	///x86/x64 IAT Hook Example
 	/*PLH::IATHook* Hook = new PLH::IATHook();
@@ -112,15 +111,20 @@ int _tmain(int argc, _TCHAR* argv[])
 	//VTableHook->UnHook();
 	//ClassToHook->NoParamVirt();
 
-	/*VEHHook = new PLH::VEHHook();
-	VEHHook->SetupHook((BYTE*)&VEHTest,(BYTE*)&hkVEHTest,PLH::VEHHook::VEHMethod::GUARD_PAGE);
+	/*!!!!IMPORTANT!!!!!: Since this demo is small it's possible for internal methods to be on the same memory page
+	as the VEHTest function. If that happens the GUARD_PAGE type method will fail with an unexpected exception. 
+	If this method is used in larger applications this risk is increadibly small, to the point where it should not
+	be worried about.
+	*/
+	///x86/x64 VEH Example (GUARD_PAGE and INT3_BP)
+	VEHHook = new PLH::VEHHook();
+	VEHHook->SetupHook((BYTE*)&VEHTest, (BYTE*)&hkVEHTest, PLH::VEHHook::VEHMethod::GUARD_PAGE);
 	VEHHook->Hook();
-	oVEHTest = VEHHook->GetOriginal<tVEH>();*/
-	//VEHTest(3);
-	//VEHHook->UnHook();
-	//VEHTest(2);
-	/*printf("%s %s\n",(VEHHook->GetLastError().GetSeverity() == PLH::IError::Severity::NoError) ? "No Error":"Error",
-		VEHHook->GetLastError().GetString().c_str());*/
+	oVEHTest = VEHHook->GetOriginal<tVEH>();
+	VEHTest(3);
+	VEHTest(1337);
+	printf("%s %s\n", (VEHHook->GetLastError().GetSeverity() == PLH::IError::Severity::NoError) ? "No Error" : "Error",
+		VEHHook->GetLastError().GetString().c_str());
 
 	Sleep(100000);
 	return 0;

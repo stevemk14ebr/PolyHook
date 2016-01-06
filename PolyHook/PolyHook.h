@@ -37,52 +37,52 @@ namespace PLH {
 				return DISP::D_INVALID;
 			}
 		}
-		bool IsConditionalJump(const std::string& mneumonic)
+		bool IsConditionalJump(const std::string& mnemonic)
 		{
 			//http://unixwiz.net/techtips/x86-jumps.html
-			if (mneumonic == "jo" || mneumonic == "jno")
+			if (mnemonic == "jo" || mnemonic == "jno")
 				return true;
 
-			if (mneumonic == "js" || mneumonic == "jns")
+			if (mnemonic == "js" || mnemonic == "jns")
 				return true;
 
-			if (mneumonic == "je" || mneumonic == "jz")
+			if (mnemonic == "je" || mnemonic == "jz")
 				return true;
 
-			if (mneumonic == "jne" || mneumonic == "jnz")
+			if (mnemonic == "jne" || mnemonic == "jnz")
 				return true;
 
-			if (mneumonic == "jb" || mneumonic == "jnae" || mneumonic == "jc")
+			if (mnemonic == "jb" || mnemonic == "jnae" || mnemonic == "jc")
 				return true;
 
-			if (mneumonic == "jnb" || mneumonic == "jae" || mneumonic == "jnc")
+			if (mnemonic == "jnb" || mnemonic == "jae" || mnemonic == "jnc")
 				return true;
 
-			if (mneumonic == "jbe" || mneumonic == "jna")
+			if (mnemonic == "jbe" || mnemonic == "jna")
 				return true;
 
-			if (mneumonic == "ja" || mneumonic == "jnbe")
+			if (mnemonic == "ja" || mnemonic == "jnbe")
 				return true;
 
-			if (mneumonic == "jl" || mneumonic == "jnge")
+			if (mnemonic == "jl" || mnemonic == "jnge")
 				return true;
 
-			if (mneumonic == "jge" || mneumonic == "jnl")
+			if (mnemonic == "jge" || mnemonic == "jnl")
 				return true;
 
-			if (mneumonic == "jle" || mneumonic == "jng")
+			if (mnemonic == "jle" || mnemonic == "jng")
 				return true;
 
-			if (mneumonic == "jg" || mneumonic == "jnle")
+			if (mnemonic == "jg" || mnemonic == "jnle")
 				return true;
 
-			if (mneumonic == "jp" || mneumonic == "jpe")
+			if (mnemonic == "jp" || mnemonic == "jpe")
 				return true;
 
-			if (mneumonic == "jnp" || mneumonic == "jpo")
+			if (mnemonic == "jnp" || mnemonic == "jpo")
 				return true;
 
-			if (mneumonic == "jcxz" || mneumonic == "jecxz")
+			if (mnemonic == "jcxz" || mnemonic == "jecxz")
 				return true;
 
 			return false;

@@ -53,7 +53,7 @@ void PLH::IDetour::SetupHook(BYTE* Src, BYTE* Dest)
 
 void PLH::IDetour::UnHook()
 {
-	MemoryProtect Protector = MemoryProtect(m_hkSrc, m_hkLength, PAGE_EXECUTE_READWRITE);
+	MemoryProtect Protector(m_hkSrc, m_hkLength, PAGE_EXECUTE_READWRITE);
 	memcpy(m_hkSrc, m_OriginalCode, m_OriginalLength); //Copy original from trampoline back to src
 	FlushSrcInsCache();
 	FreeTrampoline();
@@ -256,7 +256,7 @@ void PLH::X86Detour::Hook()
 	WriteRelativeJMP((DWORD)&m_Trampoline[m_hkLength], (DWORD)m_hkSrc + m_hkLength); //JMP back to original code
 
 	//Change protection to allow write on original function
-	MemoryProtect Protector = MemoryProtect(m_hkSrc, m_hkLength, PAGE_EXECUTE_READWRITE);
+	MemoryProtect Protector(m_hkSrc, m_hkLength, PAGE_EXECUTE_READWRITE);
 	//Encode Jump from Hooked Function to the Destination function
 	WriteRelativeJMP((DWORD)m_hkSrc, (DWORD)m_hkDest);
 
@@ -369,7 +369,7 @@ void PLH::X64Detour::Hook()
 	WriteAbsoluteJMP((DWORD64)&m_Trampoline[m_hkLength], (DWORD64)m_hkSrc + m_hkLength); 
 
 	// Build a far jump to the Destination function. (jmps not to address pointed at but to the value in the address)
-	MemoryProtect Protector = MemoryProtect(m_hkSrc, m_hkLength, PAGE_EXECUTE_READWRITE);
+	MemoryProtect Protector(m_hkSrc, m_hkLength, PAGE_EXECUTE_READWRITE);
 	int HookSize = 0;
 	if (UseRelativeJmp)
 	{
@@ -430,14 +430,14 @@ int PLH::X64Detour::GetJMPSize()
 /*----------------------------------------------*/
 void PLH::VFuncSwap::Hook()
 {
-	MemoryProtect Protector = MemoryProtect(&m_hkVtable[m_hkIndex], sizeof(void*), PAGE_READWRITE);
+	MemoryProtect Protector(&m_hkVtable[m_hkIndex], sizeof(void*), PAGE_READWRITE);
 	m_OrigVFunc = m_hkVtable[m_hkIndex];
 	m_hkVtable[m_hkIndex] = m_hkDest;
 }
 
 void PLH::VFuncSwap::UnHook()
 {
-	MemoryProtect Protector = MemoryProtect(&m_hkVtable[m_hkIndex], sizeof(void*), PAGE_READWRITE);
+	MemoryProtect Protector(&m_hkVtable[m_hkIndex], sizeof(void*), PAGE_READWRITE);
 	m_hkVtable[m_hkIndex] = m_OrigVFunc;
 }
 
@@ -487,7 +487,7 @@ PLH::VTableSwap::~VTableSwap()
 
 void PLH::VTableSwap::Hook()
 {
-	MemoryProtect Protector = MemoryProtect(m_phkClass, sizeof(void*), PAGE_READWRITE);
+	MemoryProtect Protector(m_phkClass, sizeof(void*), PAGE_READWRITE);
 	m_OrigVtable = *m_phkClass;
 	m_hkOriginal = m_OrigVtable[m_hkIndex];
 	m_VFuncCount = GetVFuncCount(m_OrigVtable);
@@ -500,7 +500,7 @@ void PLH::VTableSwap::Hook()
 
 void PLH::VTableSwap::UnHook()
 {
-	MemoryProtect Protector = MemoryProtect(m_phkClass, sizeof(void*), PAGE_READWRITE);
+	MemoryProtect Protector(m_phkClass, sizeof(void*), PAGE_READWRITE);
 	*m_phkClass = m_OrigVtable;
 	FreeNewVtable();
 }
@@ -539,7 +539,7 @@ void PLH::IATHook::Hook()
 	if (!FindIATFunc(m_hkLibraryName.c_str(), m_hkSrcFunc.c_str(), &Thunk,m_hkModuleName.c_str()))
 		return;
 
-	MemoryProtect Protector = MemoryProtect(Thunk, sizeof(ULONG_PTR), PAGE_EXECUTE_READWRITE);
+	MemoryProtect Protector(Thunk, sizeof(ULONG_PTR), PAGE_EXECUTE_READWRITE);
 	m_pIATFuncOrig = (void*)Thunk->u1.Function;
 	Thunk->u1.Function = (ULONG_PTR)m_hkDest;
 }
@@ -550,7 +550,7 @@ void PLH::IATHook::UnHook()
 	if (!FindIATFunc(m_hkLibraryName.c_str(), m_hkSrcFunc.c_str(), &Thunk))
 		return;
 
-	MemoryProtect Protector = MemoryProtect(Thunk, sizeof(ULONG_PTR), PAGE_EXECUTE_READWRITE);
+	MemoryProtect Protector(Thunk, sizeof(ULONG_PTR), PAGE_EXECUTE_READWRITE);
 	Thunk->u1.Function = (ULONG_PTR)m_pIATFuncOrig;
 }
 

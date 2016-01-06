@@ -666,8 +666,6 @@ void PLH::VEHHook::Hook()
 		MEMORY_BASIC_INFORMATION mbi;
 		VirtualQuery(m_ThisInstance.m_Src, &mbi, sizeof(mbi));
 
-		printf("Performing checks...\n");
-
 		//can't use Page Guards with NO_ACCESS flag
 		if (mbi.Protect & PAGE_NOACCESS)
 		{
@@ -690,7 +688,6 @@ void PLH::VEHHook::Hook()
 			return;
 		}
 		
-		printf("Checks:OK...About to hook\n");
 		m_HookTargets.push_back(m_ThisInstance);
 
 		//Write Page Guard protection
@@ -752,10 +749,9 @@ LONG CALLBACK PLH::VEHHook::VEHHandler(EXCEPTION_POINTERS* ExceptionInfo)
 			if(!AreInSamePage((BYTE*)ExceptionInfo->ContextRecord->XIP,Ctx.m_Src))
 				continue;
 
-			if (ExceptionInfo->ContextRecord->XIP != (DWORD_PTR)Ctx.m_Src)
-				return EXCEPTION_CONTINUE_EXECUTION;
-			else
+			if (ExceptionInfo->ContextRecord->XIP == (DWORD_PTR)Ctx.m_Src)
 				ExceptionInfo->ContextRecord->XIP = (DWORD_PTR)Ctx.m_Dest;
+
 			return EXCEPTION_CONTINUE_EXECUTION;
 		}
 	}

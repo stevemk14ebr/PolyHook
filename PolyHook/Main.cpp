@@ -72,8 +72,8 @@ int _tmain(int argc, _TCHAR* argv[])
 	Hook->Hook();
 	oMessageBoxA = Hook->GetOriginal<tMessageBoxA>();
 	MessageBoxA(NULL, "Message", "Sample", MB_OK);
-	//Hook->UnHook();
-	//MessageBoxA(NULL, "Message", "Sample", MB_OK);
+	Hook->UnHook();
+	MessageBoxA(NULL, "Message", "Sample", MB_OK);
 
 	///x86/x64 IAT Hook Example
 	/*PLH::IATHook* Hook = new PLH::IATHook();
@@ -85,7 +85,7 @@ int _tmain(int argc, _TCHAR* argv[])
 	printf("Real Thread ID:%d\n", GetCurrentThreadId());*/
 
 	///x86/x64 VFuncDetour Example
-	VirtualTest* ClassToHook = new VirtualTest();
+	//VirtualTest* ClassToHook = new VirtualTest();
 	//PLH::VFuncDetour* VirtHook = new PLH::VFuncDetour();
 	//VirtHook->SetupHook(*(BYTE***)ClassToHook, 0, (BYTE*)&hkVirtNoParams);
 	//VirtHook->Hook();

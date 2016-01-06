@@ -53,15 +53,9 @@ void PLH::IDetour::SetupHook(BYTE* Src, BYTE* Dest)
 
 void PLH::IDetour::UnHook()
 {
-	DWORD OldProtection;
-	VirtualProtect(m_hkSrc, m_hkLength, PAGE_EXECUTE_READWRITE, &OldProtection);
-
-	memcpy(m_hkSrc, m_Trampoline, m_hkLength); //Copy original from trampoline back to src
-	RelocateASM(m_hkSrc, m_hkLength, (DWORD_PTR)m_Trampoline, (DWORD_PTR)m_hkSrc); //Un-Relocate
-
-	VirtualProtect(m_hkSrc, m_hkLength, PAGE_EXECUTE_READWRITE, &OldProtection);
+	MemoryProtect Protector = MemoryProtect(m_hkSrc, m_hkLength, PAGE_EXECUTE_READWRITE);
+	memcpy(m_hkSrc, m_OriginalCode, m_OriginalLength); //Copy original from trampoline back to src
 	FlushSrcInsCache();
-
 	FreeTrampoline();
 }
 
@@ -163,6 +157,7 @@ void PLH::IDetour::RelocateASM(BYTE* Code, DWORD& CodeSize, DWORD64 From, DWORD6
 void PLH::IDetour::_Relocate(cs_insn* CurIns, DWORD64 From, DWORD64 To, const uint8_t DispSize, const uint8_t DispOffset)
 {
 	printf("Relocating...\n");
+
 	ASMHelper::DISP DispType = m_ASMInfo.GetDisplacementType(DispSize);
 	if (DispType == ASMHelper::DISP::D_INT8)
 	{
@@ -244,7 +239,7 @@ void PLH::X86Detour::Hook()
 	DWORD OldProtection;
 
 	m_hkLength = CalculateLength(m_hkSrc, 5);
-	int OrigCopiedLength = m_hkLength;
+	m_OriginalLength = m_hkLength;
 	if (m_hkLength == 0)
 	{
 		printf("Function to small to hook\n");
@@ -255,6 +250,7 @@ void PLH::X86Detour::Hook()
 	VirtualProtect(m_Trampoline, m_hkLength + 5, PAGE_EXECUTE_READWRITE, &OldProtection); //Allow Execution
 	m_NeedFree = true;
 
+	memcpy(m_OriginalCode, m_hkSrc, m_hkLength);
 	memcpy(m_Trampoline, m_hkSrc, m_hkLength); //Copy original into allocated space
 	RelocateASM(m_Trampoline, m_hkLength, (DWORD)m_hkSrc, (DWORD)m_Trampoline);
 	WriteRelativeJMP((DWORD)&m_Trampoline[m_hkLength], (DWORD)m_hkSrc + m_hkLength); //JMP back to original code
@@ -265,7 +261,7 @@ void PLH::X86Detour::Hook()
 	WriteRelativeJMP((DWORD)m_hkSrc, (DWORD)m_hkDest);
 
 	//Write nops over bytes of overwritten instructions
-	for (int i = 5; i < OrigCopiedLength; i++)
+	for (int i = 5; i < m_OriginalLength; i++)
 		m_hkSrc[i] = 0x90;
 	FlushSrcInsCache();
 	//Revert to old protection on original function
@@ -354,7 +350,7 @@ void PLH::X64Detour::Hook()
 	//Decide which jmp type to use based on function size
 	bool UseRelativeJmp = false;
 	m_hkLength = CalculateLength(m_hkSrc, 16); //More stable 16 byte jmp
-	int CopiedOrigLength = m_hkLength; //We modify hkLength in Relocation routine
+	m_OriginalLength = m_hkLength; //We modify hkLength in Relocation routine
 	if (m_hkLength == 0)
 	{
 		UseRelativeJmp = true;
@@ -366,6 +362,7 @@ void PLH::X64Detour::Hook()
 		}
 	}
 
+	memcpy(m_OriginalCode, m_hkSrc, m_hkLength);
 	memcpy(m_Trampoline, m_hkSrc, m_hkLength);
 	RelocateASM(m_Trampoline,m_hkLength, (DWORD64)m_hkSrc, (DWORD64)m_Trampoline);
 	//Write the jmp from our trampoline back to the original
@@ -387,7 +384,7 @@ void PLH::X64Detour::Hook()
 		WriteAbsoluteJMP((DWORD64)m_hkSrc, (DWORD64)m_hkDest);
 	}
 	//Nop Extra bytes from overwritten opcode
-	for (int i = HookSize; i < CopiedOrigLength; i++)
+	for (int i = HookSize; i < m_OriginalLength; i++)
 		m_hkSrc[i] = 0x90;
 
 	FlushInstructionCache(GetCurrentProcess(), m_hkSrc, m_hkLength);
@@ -743,17 +740,25 @@ LONG CALLBACK PLH::VEHHook::VEHHandler(EXCEPTION_POINTERS* ExceptionInfo)
 		}
 	}else if (ExceptionCode == EXCEPTION_GUARD_PAGE || ExceptionCode== EXCEPTION_ACCESS_VIOLATION) {
 		printf("Got Page Guard Violation\n");
+		
 		for (HookCtx& Ctx : m_HookTargets)
 		{
 			//still need to check if exception is in our page
 			if (Ctx.m_Type != VEHMethod::GUARD_PAGE)
 				continue;
 
+			if(!AreInSamePage((BYTE*)ExceptionInfo->ContextRecord->XIP,Ctx.m_Src))
+				continue;
+
+			if (ExceptionInfo->ContextRecord->XIP != (DWORD_PTR)Ctx.m_Src)
+				return EXCEPTION_CONTINUE_EXECUTION;
+			else
+				printf("Would Call handler here\n");
+
 			//ExceptionInfo->ContextRecord->XIP = (DWORD_PTR)Ctx.m_Dest;
 			return EXCEPTION_CONTINUE_EXECUTION;
 		}
 	}
-	printf("%08X\n", ExceptionCode);
 	return EXCEPTION_CONTINUE_SEARCH;
 }
 

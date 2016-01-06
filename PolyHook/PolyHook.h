@@ -171,6 +171,8 @@ namespace PLH {
 		csh m_CapstoneHandle;
 		ASMHelper m_ASMInfo;
 
+		BYTE m_OriginalCode[64];
+		DWORD m_OriginalLength;
 		BYTE* m_Trampoline;
 		bool m_NeedFree;
 		BYTE* m_hkSrc;
@@ -390,7 +392,6 @@ namespace PLH {
 		{
 			return (T)m_ThisInstance.m_Src;
 		}
-		bool AreInSamePage(BYTE* Addr1, BYTE* Addr2);
 		void SetupHook(BYTE* Src, BYTE* Dest,VEHMethod Method);
 
 		auto GetProtectionObject()
@@ -429,6 +430,7 @@ namespace PLH {
 			}
 		};
 	private:
+		static bool AreInSamePage(BYTE* Addr1, BYTE* Addr2);
 		static LONG CALLBACK VEHHandler(EXCEPTION_POINTERS* ExceptionInfo);
 		static std::vector<HookCtx> m_HookTargets;
 		static std::mutex m_TargetMutex;

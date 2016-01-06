@@ -707,6 +707,8 @@ void PLH::VEHHook::UnHook()
 	{
 		MemoryProtect Protector(m_ThisInstance.m_Src, 1, PAGE_EXECUTE_READWRITE);
 		*m_ThisInstance.m_Src = m_ThisInstance.m_OriginalByte;
+	}else if (m_ThisInstance.m_Type == VEHMethod::GUARD_PAGE) {
+		BYTE GenerateExceptionRead = *m_ThisInstance.m_Src;
 	}
 	m_HookTargets.erase(std::remove(m_HookTargets.begin(), m_HookTargets.end(), m_ThisInstance), m_HookTargets.end());
 }

@@ -15,10 +15,10 @@ namespace PLH {
 	public:
 		enum DISP
 		{
-			D_QWORD = 8,
-			D_DWORD = 4,
-			D_WORD = 2,
-			D_BYTE = 1,
+			D_INT64 = 8,
+			D_INT32 = 4,
+			D_INT16 = 2,
+			D_INT8 = 1,
 			D_INVALID = -1
 		};
 		DISP GetDisplacementType(const uint8_t DispVal)
@@ -26,17 +26,68 @@ namespace PLH {
 			switch (DispVal)
 			{
 			case 1:
-				return DISP::D_BYTE;
+				return DISP::D_INT8;
 			case 2:
-				return DISP::D_WORD;
+				return DISP::D_INT16;
 			case 4:
-				return DISP::D_DWORD;
+				return DISP::D_INT32;
 			case 8:
-				return DISP::D_QWORD;
+				return DISP::D_INT64;
 			default:
 				return DISP::D_INVALID;
 			}
 		}
+		bool IsConditionalJump(const std::string& mneumonic)
+		{
+			//http://unixwiz.net/techtips/x86-jumps.html
+			if (mneumonic == "jo" || mneumonic == "jno")
+				return true;
+
+			if (mneumonic == "js" || mneumonic == "jns")
+				return true;
+
+			if (mneumonic == "je" || mneumonic == "jz")
+				return true;
+
+			if (mneumonic == "jne" || mneumonic == "jnz")
+				return true;
+
+			if (mneumonic == "jb" || mneumonic == "jnae" || mneumonic == "jc")
+				return true;
+
+			if (mneumonic == "jnb" || mneumonic == "jae" || mneumonic == "jnc")
+				return true;
+
+			if (mneumonic == "jbe" || mneumonic == "jna")
+				return true;
+
+			if (mneumonic == "ja" || mneumonic == "jnbe")
+				return true;
+
+			if (mneumonic == "jl" || mneumonic == "jnge")
+				return true;
+
+			if (mneumonic == "jge" || mneumonic == "jnl")
+				return true;
+
+			if (mneumonic == "jle" || mneumonic == "jng")
+				return true;
+
+			if (mneumonic == "jg" || mneumonic == "jnle")
+				return true;
+
+			if (mneumonic == "jp" || mneumonic == "jpe")
+				return true;
+
+			if (mneumonic == "jnp" || mneumonic == "jpo")
+				return true;
+
+			if (mneumonic == "jcxz" || mneumonic == "jecxz")
+				return true;
+
+			return false;
+		}
+
 		template<typename T>
 		T GetDisplacement(BYTE* Instruction, const uint32_t Offset)
 		{
@@ -47,6 +98,26 @@ namespace PLH {
 		}
 	};
 
+	class IError
+	{
+	public:
+		enum class Severity
+		{
+			Warning, //Might have an issue
+			Critical, //Definitely have an issue, but it's not serious
+			UnRecoverable, //Definitely have an issue, it's serious
+			NoError //Default
+		};
+		IError();
+		IError(Severity Sev, const std::string& Msg);
+		virtual ~IError() = default;
+		Severity GetSeverity() const;
+		std::string GetString() const;
+	private:
+		Severity m_Severity;
+		std::string m_Message;
+	};
+
 	class IHook
 	{
 	public:
@@ -54,6 +125,10 @@ namespace PLH {
 		virtual void Hook() = 0;
 		virtual void UnHook() = 0;
 		virtual ~IHook() = default;
+		void PostError(const IError& Err);
+		IError GetLastError() const;
+	protected:
+		IError m_LastError;
 	};
 
 	class IDetour :public IHook
@@ -84,15 +159,20 @@ namespace PLH {
 			return To - (From + InsSize);
 		}
 		DWORD CalculateLength(BYTE* Src, DWORD NeededLength);
-		void RelocateASM(BYTE* Code, DWORD64 CodeSize, DWORD64 From, DWORD64 To);
+		void RelocateASM(BYTE* Code, DWORD& CodeSize, DWORD64 From, DWORD64 To);
 		void _Relocate(cs_insn* CurIns, DWORD64 From, DWORD64 To, const uint8_t DispSize, const uint8_t DispOffset);
+		void RelocateConditionalJMP(cs_insn* CurIns, DWORD& CodeSize, DWORD64 From, DWORD64 To, const uint8_t DispSize, const uint8_t DispOffset);
 		virtual x86_reg GetIpReg() = 0;
 		virtual void FreeTrampoline() = 0;
+		virtual void WriteJMP(DWORD_PTR From, DWORD_PTR To) = 0;
+		virtual int GetJMPSize() = 0;
 		void FlushSrcInsCache();
 		void Initialize(cs_mode Mode);
 		csh m_CapstoneHandle;
 		ASMHelper m_ASMInfo;
 
+		BYTE m_OriginalCode[64];
+		DWORD m_OriginalLength;
 		BYTE* m_Trampoline;
 		bool m_NeedFree;
 		BYTE* m_hkSrc;
@@ -114,6 +194,10 @@ namespace PLH {
 	protected:
 		virtual x86_reg GetIpReg() override;
 		virtual void FreeTrampoline();
+		virtual void WriteJMP(DWORD_PTR From, DWORD_PTR To);
+		virtual int GetJMPSize();
+	private:
+		void WriteRelativeJMP(DWORD Destination, DWORD JMPDestination);
 	};
 #else
 #define Detour X64Detour
@@ -129,6 +213,10 @@ namespace PLH {
 	protected:
 		virtual x86_reg GetIpReg() override;
 		virtual void FreeTrampoline() override;
+		virtual void WriteJMP(DWORD_PTR From, DWORD_PTR To) override;
+		virtual int GetJMPSize() override;
+	private:
+		void WriteAbsoluteJMP(DWORD64 Destination, DWORD64 JMPDestination);
 	};
 #endif //END _WIN64 IFDEF
 
@@ -289,6 +377,12 @@ namespace PLH {
 	class VEHHook : public IHook
 	{
 	public:
+		enum class VEHMethod
+		{
+			INT3_BP,
+			GUARD_PAGE,
+			ERROR_TYPE
+		};
 		VEHHook();
 		~VEHHook() = default;
 		virtual void Hook() override;
@@ -298,45 +392,53 @@ namespace PLH {
 		{
 			return (T)m_ThisInstance.m_Src;
 		}
-
-		void SetupHook(BYTE* Src, BYTE* Dest);
+		void SetupHook(BYTE* Src, BYTE* Dest,VEHMethod Method);
 
 		auto GetProtectionObject()
 		{
-			//Return an object to restore INT3 BP after return
+				//Return an object to restore INT3_BP after callback is done
 			return finally([&]() {
-				MemoryProtect Protector(m_ThisInstance.m_Src, 1, PAGE_EXECUTE_READWRITE);
-				*m_ThisInstance.m_Src = 0xCC;
+				if (m_ThisInstance.m_Type == VEHMethod::INT3_BP)
+				{
+					MemoryProtect Protector(m_ThisInstance.m_Src, 1, PAGE_EXECUTE_READWRITE);
+					*m_ThisInstance.m_Src = 0xCC;
+				}else if (m_ThisInstance.m_Type == VEHMethod::GUARD_PAGE) {
+					DWORD OldProtection;
+					VirtualProtect(m_ThisInstance.m_Src, 1, PAGE_EXECUTE_READWRITE | PAGE_GUARD, &OldProtection);
+				}
 			});
 		}
 	protected:
 		struct HookCtx {
+			VEHMethod m_Type;
 			BYTE* m_Src;
 			BYTE* m_Dest;
 			BYTE m_OriginalByte;
 
-			HookCtx(BYTE* Src, BYTE* Dest)
+			HookCtx(BYTE* Src, BYTE* Dest,VEHMethod Method)
 			{
 				m_Dest = Dest;
 				m_Src = Src;
+				m_Type = Method;
 			}
 			HookCtx()
 			{
-
+				m_Type = VEHMethod::ERROR_TYPE;
 			}
 			friend bool operator==(const HookCtx& Ctx1, const HookCtx& Ctx2)
 			{
-				if (Ctx1.m_Dest == Ctx2.m_Dest && Ctx1.m_Src == Ctx2.m_Src)
+				if (Ctx1.m_Dest == Ctx2.m_Dest && Ctx1.m_Src == Ctx2.m_Src && Ctx1.m_Type == Ctx2.m_Type)
 					return true;
 				return false;
 			}
 		};
-		
 	private:
+		static bool AreInSamePage(BYTE* Addr1, BYTE* Addr2);
 		static LONG CALLBACK VEHHandler(EXCEPTION_POINTERS* ExceptionInfo);
 		static std::vector<HookCtx> m_HookTargets;
 		static std::mutex m_TargetMutex;
 		HookCtx m_ThisInstance;
+		DWORD m_PageSize;
 	};
 }//end PLH namespace
 #endif//end include guard

@@ -122,6 +122,7 @@ int _tmain(int argc, _TCHAR* argv[])
 	VEHHook->Hook();
 	oVEHTest = VEHHook->GetOriginal<tVEH>();
 	VEHTest(3);
+	VEHHook->UnHook();
 	VEHTest(1337);
 	printf("%s %s\n", (VEHHook->GetLastError().GetSeverity() == PLH::IError::Severity::NoError) ? "No Error" : "Error",
 		VEHHook->GetLastError().GetString().c_str());

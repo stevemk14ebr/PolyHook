@@ -326,21 +326,6 @@ namespace PLH {
 		void* m_pIATFuncOrig;
 	};
 
-	class MemoryProtectDelay
-	{
-	public:
-		void RestoreOriginal();
-		void SetProtection(DWORD ProtectionFlags);
-		void ApplyProtection();
-		MemoryProtectDelay(void* Address, size_t Size);
-	private:
-		DWORD m_OriginalProtection;
-		DWORD m_PreviousProtection;
-		DWORD m_DesiredProtection;
-		size_t m_Size;
-		void* m_Address;
-	};
-
 	template<typename Func>
 	class FinalAction {
 	public:

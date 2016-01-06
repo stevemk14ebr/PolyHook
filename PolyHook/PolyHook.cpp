@@ -759,31 +759,6 @@ LONG CALLBACK PLH::VEHHook::VEHHandler(EXCEPTION_POINTERS* ExceptionInfo)
 }
 
 /*----------------------------------------------*/
-PLH::MemoryProtectDelay::MemoryProtectDelay(void* Address, size_t Size)
-{
-	MEMORY_BASIC_INFORMATION mbi;
-	VirtualQuery(Address, &mbi, Size);
-	m_OriginalProtection = mbi.Protect;
-	m_Address = Address;
-	m_Size = Size;
-}
-
-void PLH::MemoryProtectDelay::SetProtection(DWORD ProtectionFlags)
-{
-	m_DesiredProtection = ProtectionFlags;
-}
-
-void PLH::MemoryProtectDelay::ApplyProtection()
-{
-	VirtualProtect(m_Address, m_Size, m_DesiredProtection, &m_PreviousProtection);
-}
-
-void PLH::MemoryProtectDelay::RestoreOriginal()
-{
-	VirtualProtect(m_Address, m_Size, m_OriginalProtection, &m_PreviousProtection);
-}
-
-/*----------------------------------------------*/
 PLH::MemoryProtect::MemoryProtect(void* Address, size_t Size, DWORD ProtectionFlags)
 {
 	m_Address = Address;

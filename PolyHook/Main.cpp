@@ -124,7 +124,7 @@ int _tmain(int argc, _TCHAR* argv[])
 	VEHTest(3);
 	VEHHook->UnHook();
 	VEHTest(1);
-	printf("%s %s\n", (VEHHook->GetLastError().GetSeverity() == PLH::IError::Severity::NoError) ? "No Error" : "Error",
+	printf("%s %s\n", (VEHHook->GetLastError().GetSeverity() == PLH::RuntimeError::Severity::NoError) ? "No Error" : "Error",
 		VEHHook->GetLastError().GetString().c_str());
 
 	Sleep(100000);

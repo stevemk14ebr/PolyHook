@@ -1,37 +1,37 @@
 #include "PolyHook.h"
-PLH::IError::IError()
+PLH::RuntimeError::RuntimeError()
 {
 	m_Message = "";
 	m_Severity = Severity::NoError;
 }
 
-PLH::IError::IError(Severity Sev, const std::string& Msg)
+PLH::RuntimeError::RuntimeError(Severity Sev, const std::string& Msg)
 {
 	m_Severity = Sev;
 	m_Message = Msg;
 }
 
-const std::string PLH::IError::GetString() const
+const std::string PLH::RuntimeError::GetString() const
 {
 	return m_Message;
 }
 
-const PLH::IError::Severity PLH::IError::GetSeverity() const
+const PLH::RuntimeError::Severity PLH::RuntimeError::GetSeverity() const
 {
 	return m_Severity;
 }
 
-void PLH::IHook::PostError(const IError& Err)
+void PLH::IHook::PostError(const RuntimeError& Err)
 {
 	m_LastError = Err;
 }
 
-PLH::IError PLH::IHook::GetLastError() const
+PLH::RuntimeError PLH::IHook::GetLastError() const
 {
 	return m_LastError;
 }
 
-PLH::IDetour::IDetour() :IHook(), m_NeedFree(false)
+PLH::AbstractDetour::AbstractDetour() :IHook(), m_NeedFree(false)
 {
 #ifdef _WIN64
 	Initialize(CS_MODE_64);
@@ -40,18 +40,18 @@ PLH::IDetour::IDetour() :IHook(), m_NeedFree(false)
 #endif // _WIN64
 }
 
-PLH::IDetour::~IDetour()
+PLH::AbstractDetour::~AbstractDetour()
 {
 	cs_close(&m_CapstoneHandle);
 }
 
-void PLH::IDetour::SetupHook(BYTE* Src, BYTE* Dest)
+void PLH::AbstractDetour::SetupHook(BYTE* Src, BYTE* Dest)
 {
 	m_hkSrc = Src;
 	m_hkDest = Dest;
 }
 
-void PLH::IDetour::UnHook()
+void PLH::AbstractDetour::UnHook()
 {
 	MemoryProtect Protector(m_hkSrc, m_hkLength, PAGE_EXECUTE_READWRITE);
 	memcpy(m_hkSrc, m_OriginalCode, m_OriginalLength); //Copy original from trampoline back to src
@@ -59,7 +59,7 @@ void PLH::IDetour::UnHook()
 	FreeTrampoline();
 }
 
-DWORD PLH::IDetour::CalculateLength(BYTE* Src, DWORD NeededLength)
+DWORD PLH::AbstractDetour::CalculateLength(BYTE* Src, DWORD NeededLength)
 {
 	//Grab First 100 bytes of function, disasm until invalid instruction
 	cs_insn* InstructionInfo;
@@ -88,7 +88,7 @@ DWORD PLH::IDetour::CalculateLength(BYTE* Src, DWORD NeededLength)
 	return InstructionSize;
 }
 
-void PLH::IDetour::RelocateASM(BYTE* Code, DWORD& CodeSize, DWORD64 From, DWORD64 To)
+void PLH::AbstractDetour::RelocateASM(BYTE* Code, DWORD& CodeSize, DWORD64 From, DWORD64 To)
 {
 	cs_insn* InstructionInfo;
 	size_t InstructionCount = cs_disasm(m_CapstoneHandle, Code, CodeSize, (uint64_t)Code, 0, &InstructionInfo);
@@ -154,7 +154,7 @@ void PLH::IDetour::RelocateASM(BYTE* Code, DWORD& CodeSize, DWORD64 From, DWORD6
 	cs_free(InstructionInfo, InstructionCount);
 }
 
-void PLH::IDetour::_Relocate(cs_insn* CurIns, DWORD64 From, DWORD64 To, const uint8_t DispSize, const uint8_t DispOffset)
+void PLH::AbstractDetour::_Relocate(cs_insn* CurIns, DWORD64 From, DWORD64 To, const uint8_t DispSize, const uint8_t DispOffset)
 {
 	printf("Relocating...\n");
 
@@ -175,12 +175,12 @@ void PLH::IDetour::_Relocate(cs_insn* CurIns, DWORD64 From, DWORD64 To, const ui
 	}
 }
 
-void PLH::IDetour::FlushSrcInsCache()
+void PLH::AbstractDetour::FlushSrcInsCache()
 {
 	FlushInstructionCache(GetCurrentProcess(), m_hkSrc, m_hkLength);
 }
 
-void PLH::IDetour::Initialize(cs_mode Mode)
+void PLH::AbstractDetour::Initialize(cs_mode Mode)
 {
 	if (cs_open(CS_ARCH_X86, Mode, &m_CapstoneHandle) != CS_ERR_OK)
 		printf("Error Initializing Capstone x86\n");
@@ -188,7 +188,7 @@ void PLH::IDetour::Initialize(cs_mode Mode)
 	cs_option(m_CapstoneHandle, CS_OPT_DETAIL, CS_OPT_ON);
 }
 
-void PLH::IDetour::RelocateConditionalJMP(cs_insn* CurIns, DWORD& CodeSize, DWORD64 From, DWORD64 To, const uint8_t DispSize, const uint8_t DispOffset)
+void PLH::AbstractDetour::RelocateConditionalJMP(cs_insn* CurIns, DWORD& CodeSize, DWORD64 From, DWORD64 To, const uint8_t DispSize, const uint8_t DispOffset)
 {
 	/*This function automatically begins to build a jump table at the end of the trampoline to allow relative jumps to function properly:
 	-Changes relative jump to point to an absolute jump
@@ -223,7 +223,7 @@ void PLH::IDetour::RelocateConditionalJMP(cs_insn* CurIns, DWORD& CodeSize, DWOR
 
 /*----------------------------------------------*/
 #ifndef _WIN64
-PLH::X86Detour::X86Detour() : IDetour()
+PLH::X86Detour::X86Detour() : AbstractDetour()
 {
 
 }
@@ -266,7 +266,7 @@ void PLH::X86Detour::Hook()
 	FlushSrcInsCache();
 	//Revert to old protection on original function
 	VirtualProtect(m_hkSrc, m_hkLength, OldProtection, &OldProtection);
-	PostError(IError(IError::Severity::Warning, "PolyHook x86Detour: Some opcodes may not be relocated properly"));
+	PostError(RuntimeError(RuntimeError::Severity::Warning, "PolyHook x86Detour: Some opcodes may not be relocated properly"));
 
 	/*Original
 	-JMP Destination
@@ -317,7 +317,7 @@ int PLH::X86Detour::GetJMPSize()
 	return 5;
 }
 #else
-PLH::X64Detour::X64Detour() :IDetour()
+PLH::X64Detour::X64Detour() :AbstractDetour()
 {
 
 }
@@ -357,7 +357,7 @@ void PLH::X64Detour::Hook()
 		m_hkLength = CalculateLength(m_hkSrc, 6); //Smaller, less safe 6 byte (jmp could be out of bounds)
 		if (m_hkLength == 0)
 		{
-			PostError(IError(IError::Severity::UnRecoverable, "PolyHook x64Detour: Function to small to hook"));
+			PostError(RuntimeError(RuntimeError::Severity::UnRecoverable, "PolyHook x64Detour: Function to small to hook"));
 			return;
 		}
 	}
@@ -388,7 +388,7 @@ void PLH::X64Detour::Hook()
 		m_hkSrc[i] = 0x90;
 
 	FlushInstructionCache(GetCurrentProcess(), m_hkSrc, m_hkLength);
-	PostError(IError(IError::Severity::Warning, "PolyHook x64Detour: Relocation can be out of range"));
+	PostError(RuntimeError(RuntimeError::Severity::Warning, "PolyHook x64Detour: Relocation can be out of range"));
 }
 
 x86_reg PLH::X64Detour::GetIpReg()
@@ -622,7 +622,7 @@ PLH::VEHHook::VEHHook()
 	void* pVEH = AddVectoredExceptionHandler(1, &PLH::VEHHook::VEHHandler);
 	if (pVEH == nullptr)
 	{
-		PostError(IError(IError::Severity::UnRecoverable, "PolyHook VEH: Failed to create top level handler"));
+		PostError(RuntimeError(RuntimeError::Severity::UnRecoverable, "PolyHook VEH: Failed to create top level handler"));
 	}
 }
 
@@ -669,13 +669,13 @@ void PLH::VEHHook::Hook()
 		//can't use Page Guards with NO_ACCESS flag
 		if (mbi.Protect & PAGE_NOACCESS)
 		{
-			PostError(IError(IError::Severity::UnRecoverable, "PolyHook VEH: Cannot hook page with NOACCESS Flag"));
+			PostError(RuntimeError(RuntimeError::Severity::UnRecoverable, "PolyHook VEH: Cannot hook page with NOACCESS Flag"));
 			return;
 		}
 
 		if (AreInSamePage((BYTE*)&PLH::VEHHook::VEHHandler, m_ThisCtx.m_Src))
 		{
-			PostError(IError(IError::Severity::UnRecoverable, "PolyHook VEH: Cannot hook page on same page as the VEH\n"));
+			PostError(RuntimeError(RuntimeError::Severity::UnRecoverable, "PolyHook VEH: Cannot hook page on same page as the VEH\n"));
 			return;
 		}
 
@@ -683,7 +683,7 @@ void PLH::VEHHook::Hook()
 		void(PLH::VEHHook::* pHookFunc)(void) = &PLH::VEHHook::Hook;
 		if (AreInSamePage((BYTE*&)pHookFunc, m_ThisCtx.m_Src))
 		{
-			PostError(IError(IError::Severity::UnRecoverable, "PolyHook VEH: Cannot hook page on same page as the hooking function\n"));
+			PostError(RuntimeError(RuntimeError::Severity::UnRecoverable, "PolyHook VEH: Cannot hook page on same page as the hooking function\n"));
 			return;
 		}
 		

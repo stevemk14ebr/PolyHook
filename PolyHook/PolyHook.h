@@ -98,7 +98,7 @@ namespace PLH {
 		}
 	};
 
-	class IError
+	class RuntimeError
 	{
 	public:
 		enum class Severity
@@ -108,9 +108,9 @@ namespace PLH {
 			UnRecoverable, //Definitely have an issue, it's serious
 			NoError //Default
 		};
-		IError();
-		IError(Severity Sev, const std::string& Msg);
-		virtual ~IError() = default;
+		RuntimeError();
+		RuntimeError(Severity Sev, const std::string& Msg);
+		virtual ~RuntimeError() = default;
 		const Severity GetSeverity() const;
 		const std::string GetString() const;
 	private:
@@ -125,17 +125,17 @@ namespace PLH {
 		virtual void Hook() = 0;
 		virtual void UnHook() = 0;
 		virtual ~IHook() = default;
-		void PostError(const IError& Err);
-		IError GetLastError() const;
+		void PostError(const RuntimeError& Err);
+		RuntimeError GetLastError() const;
 	protected:
-		IError m_LastError;
+		RuntimeError m_LastError;
 	};
 
-	class IDetour :public IHook
+	class AbstractDetour :public IHook
 	{
 	public:
-		IDetour();
-		virtual ~IDetour();
+		AbstractDetour();
+		virtual ~AbstractDetour();
 		template<typename T>
 		void SetupHook(T* Src, T* Dest)
 		{
@@ -184,11 +184,11 @@ namespace PLH {
 #ifndef _WIN64
 #define Detour X86Detour
 	//x86 5 Byte Detour
-	class X86Detour :public IDetour
+	class X86Detour :public AbstractDetour
 	{
 	public:
 		X86Detour();
-		~X86Detour();
+		virtual ~X86Detour();
 
 		virtual void Hook() override;
 	protected:
@@ -202,12 +202,12 @@ namespace PLH {
 #else
 #define Detour X64Detour
 	//X64 6 Byte Detour
-	class X64Detour :public IDetour
+	class X64Detour :public AbstractDetour
 	{
 	public:
 		//Credits DarthTon, evolution536
 		X64Detour();
-		~X64Detour();
+		virtual ~X64Detour();
 
 		virtual void Hook() override;
 	protected:
@@ -225,7 +225,7 @@ namespace PLH {
 	{
 	public:
 		VFuncSwap() = default;
-		~VFuncSwap() = default;
+		virtual ~VFuncSwap() = default;
 		virtual void Hook() override;
 		virtual void UnHook() override;
 		void SetupHook(BYTE** Vtable, const int Index, BYTE* Dest);
@@ -246,7 +246,7 @@ namespace PLH {
 	{
 	public:
 		VFuncDetour();
-		~VFuncDetour();
+		virtual ~VFuncDetour();
 		virtual void Hook() override;
 		virtual void UnHook() override;
 		void SetupHook(BYTE** Vtable, const int Index, BYTE* Dest);
@@ -271,7 +271,7 @@ namespace PLH {
 	{
 	public:
 		VTableSwap();
-		~VTableSwap();
+		virtual ~VTableSwap();
 		virtual void Hook() override;
 		template<typename T>
 		T HookAdditional(const int Index, BYTE* Dest)
@@ -308,7 +308,7 @@ namespace PLH {
 	{
 	public:
 		IATHook() = default;
-		~IATHook() = default;
+		virtual ~IATHook() = default;
 		virtual void Hook() override;
 		virtual void UnHook() override;
 		template<typename T>
@@ -369,7 +369,7 @@ namespace PLH {
 			ERROR_TYPE
 		};
 		VEHHook();
-		~VEHHook() = default;
+		virtual ~VEHHook() = default;
 		virtual void Hook() override;
 		virtual void UnHook() override;
 		template<typename T>

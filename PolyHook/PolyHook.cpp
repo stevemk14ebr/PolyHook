@@ -144,7 +144,6 @@ void PLH::AbstractDetour::RelocateASM(BYTE* Code, DWORD& CodeSize, DWORD64 From,
 	for (int i = 0; i < InstructionCount; i++)
 	{
 		cs_insn* CurIns = (cs_insn*)&InstructionInfo[i];
-		cs_x86* x86 = &(CurIns->detail->x86);
 
 		printf("%I64X: ", CurIns->address);
 		for (int j = 0; j < CurIns->size; j++)
@@ -165,11 +164,11 @@ void PLH::AbstractDetour::_Relocate(cs_insn* CurIns, DWORD64 From, DWORD64 To, c
 		Disp -= (To - From);
 		*(int8_t*)(CurIns->address + DispOffset) = Disp;
 	}else if (DispType == ASMHelper::DISP::D_INT16) {
-		int16_t Disp = Disp = m_ASMInfo.GetDisplacement<int16_t>(CurIns->bytes, DispOffset);
+		int16_t Disp = m_ASMInfo.GetDisplacement<int16_t>(CurIns->bytes, DispOffset);
 		Disp -= (To - From);
 		*(int16_t*)(CurIns->address + DispOffset) = Disp;
 	}else if (DispType == ASMHelper::DISP::D_INT32) {
-		int32_t Disp = Disp = m_ASMInfo.GetDisplacement<int32_t>(CurIns->bytes, DispOffset);
+		int32_t Disp = m_ASMInfo.GetDisplacement<int32_t>(CurIns->bytes, DispOffset);
 		Disp -= (To - From);
 		*(int32_t*)(CurIns->address + DispOffset) = Disp;
 	}
@@ -704,7 +703,7 @@ void PLH::VEHHook::UnHook()
 		MemoryProtect Protector(m_ThisCtx.m_Src, 1, PAGE_EXECUTE_READWRITE);
 		*m_ThisCtx.m_Src = m_ThisCtx.m_OriginalByte;
 	}else if (m_ThisCtx.m_Type == VEHMethod::GUARD_PAGE) {
-		BYTE GenerateExceptionRead = *m_ThisCtx.m_Src;
+		volatile BYTE GenerateExceptionRead = *m_ThisCtx.m_Src;
 	}
 	m_HookTargets.erase(std::remove(m_HookTargets.begin(), m_HookTargets.end(), m_ThisCtx), m_HookTargets.end());
 }

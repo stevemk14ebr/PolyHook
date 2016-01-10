@@ -9,6 +9,7 @@
 #include <algorithm>
 #pragma comment(lib,"Dbghelp.lib")
 #pragma comment(lib,"capstone.lib")
+
 namespace PLH {
 	class ASMHelper
 	{

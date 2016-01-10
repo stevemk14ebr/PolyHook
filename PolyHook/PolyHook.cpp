@@ -1,4 +1,14 @@
 #include "PolyHook.h"
+void XTrace(char* lpszFormat, ...)
+{
+	va_list args;
+	va_start(args, lpszFormat);
+#ifdef _DEBUG
+	vfprintf_s(stdout, lpszFormat, args);
+#endif
+	va_end(args);
+}
+
 PLH::RuntimeError::RuntimeError()
 {
 	m_Message = "";
@@ -66,7 +76,7 @@ DWORD PLH::AbstractDetour::CalculateLength(BYTE* Src, DWORD NeededLength)
 	size_t InstructionCount = cs_disasm(m_CapstoneHandle, Src, 0x100, (uint64_t)Src, 0, &InstructionInfo);
 
 	//Loop over instructions until we have at least NeededLength's Size
-	printf("\nORIGINAL:\n");
+	XTrace("\nORIGINAL:\n");
 	DWORD InstructionSize = 0;
 	bool BigEnough = false;
 	for (int i = 0; i < InstructionCount && !BigEnough; i++)
@@ -76,10 +86,10 @@ DWORD PLH::AbstractDetour::CalculateLength(BYTE* Src, DWORD NeededLength)
 		if (InstructionSize >= NeededLength)
 			BigEnough = true;
 
-		printf("%I64X [%d]: ", CurIns->address, CurIns->size);
+		XTrace("%I64X [%d]: ", CurIns->address, CurIns->size);
 		for (int j = 0; j < CurIns->size; j++)
-			printf("%02X ", CurIns->bytes[j]);
-		printf("%s %s\n", CurIns->mnemonic, CurIns->op_str);
+			XTrace("%02X ", CurIns->bytes[j]);
+		XTrace("%s %s\n", CurIns->mnemonic, CurIns->op_str);
 	}
 	if (!BigEnough)
 		InstructionSize = 0;
@@ -93,16 +103,16 @@ void PLH::AbstractDetour::RelocateASM(BYTE* Code, DWORD& CodeSize, DWORD64 From,
 	cs_insn* InstructionInfo;
 	size_t InstructionCount = cs_disasm(m_CapstoneHandle, Code, CodeSize, (uint64_t)Code, 0, &InstructionInfo);
 
-	printf("\nTrampoline:\n");
+	XTrace("\nTrampoline:\n");
 	for (int i = 0; i < InstructionCount; i++)
 	{
 		cs_insn* CurIns = (cs_insn*)&InstructionInfo[i];
 		cs_x86* x86 = &(CurIns->detail->x86);
 
-		printf("%I64X: ", CurIns->address);
+		XTrace("%I64X: ", CurIns->address);
 		for (int j = 0; j < CurIns->size; j++)
-			printf("%02X ", CurIns->bytes[j]);
-		printf("%s %s\n", CurIns->mnemonic,CurIns->op_str);
+			XTrace("%02X ", CurIns->bytes[j]);
+		XTrace("%s %s\n", CurIns->mnemonic,CurIns->op_str);
 
 		for (int j = 0; j < x86->op_count; j++)
 		{
@@ -139,23 +149,23 @@ void PLH::AbstractDetour::RelocateASM(BYTE* Code, DWORD& CodeSize, DWORD64 From,
 		}
 	}
 
-	printf("\nFixed Trampoline\n");
+	XTrace("\nFixed Trampoline\n");
 	InstructionCount = cs_disasm(m_CapstoneHandle, Code, CodeSize, (uint64_t)Code, 0, &InstructionInfo);
 	for (int i = 0; i < InstructionCount; i++)
 	{
 		cs_insn* CurIns = (cs_insn*)&InstructionInfo[i];
 
-		printf("%I64X: ", CurIns->address);
+		XTrace("%I64X: ", CurIns->address);
 		for (int j = 0; j < CurIns->size; j++)
-			printf("%02X ", CurIns->bytes[j]);
-		printf("%s %s\n", CurIns->mnemonic, CurIns->op_str);
+			XTrace("%02X ", CurIns->bytes[j]);
+		XTrace("%s %s\n", CurIns->mnemonic, CurIns->op_str);
 	}
 	cs_free(InstructionInfo, InstructionCount);
 }
 
 void PLH::AbstractDetour::_Relocate(cs_insn* CurIns, DWORD64 From, DWORD64 To, const uint8_t DispSize, const uint8_t DispOffset)
 {
-	printf("Relocating...\n");
+	XTrace("Relocating...\n");
 
 	ASMHelper::DISP DispType = m_ASMInfo.GetDisplacementType(DispSize);
 	if (DispType == ASMHelper::DISP::D_INT8)
@@ -182,7 +192,7 @@ void PLH::AbstractDetour::FlushSrcInsCache()
 void PLH::AbstractDetour::Initialize(cs_mode Mode)
 {
 	if (cs_open(CS_ARCH_X86, Mode, &m_CapstoneHandle) != CS_ERR_OK)
-		printf("Error Initializing Capstone x86\n");
+		XTrace("Error Initializing Capstone x86\n");
 
 	cs_option(m_CapstoneHandle, CS_OPT_DETAIL, CS_OPT_ON);
 }
@@ -241,7 +251,7 @@ void PLH::X86Detour::Hook()
 	m_OriginalLength = m_hkLength;
 	if (m_hkLength == 0)
 	{
-		printf("Function to small to hook\n");
+		XTrace("Function to small to hook\n");
 		return;
 	}
 
@@ -341,7 +351,6 @@ void PLH::X64Detour::Hook()
 		if (m_Trampoline = (BYTE*)VirtualAlloc(mbi.BaseAddress, 0x1000, MEM_RESERVE | MEM_COMMIT, PAGE_EXECUTE_READWRITE))
 			break;
 	}
-
 	if (!m_Trampoline)
 		return;
 	m_NeedFree = true;

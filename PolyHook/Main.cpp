@@ -66,13 +66,13 @@ public:
 int _tmain(int argc, _TCHAR* argv[])
 {
 	///X86/x64 Detour Example
-	//PLH::Detour* Hook = new PLH::Detour();
-	//Hook->SetupHook((BYTE*)&MessageBoxA,(BYTE*) &hkMessageBoxA); //can cast to byte* to
-	//Hook->Hook();
-	//oMessageBoxA = Hook->GetOriginal<tMessageBoxA>();
-	//MessageBoxA(NULL, "Message", "Sample", MB_OK);
-	//Hook->UnHook();
-	//MessageBoxA(NULL, "Message", "Sample", MB_OK);
+	PLH::Detour* Hook = new PLH::Detour();
+	Hook->SetupHook((BYTE*)&MessageBoxA,(BYTE*) &hkMessageBoxA); //can cast to byte* to
+	Hook->Hook();
+	oMessageBoxA = Hook->GetOriginal<tMessageBoxA>();
+	MessageBoxA(NULL, "Message", "Sample", MB_OK);
+	Hook->UnHook();
+	MessageBoxA(NULL, "Message", "Sample", MB_OK);
 
 	///x86/x64 IAT Hook Example
 	/*PLH::IATHook* Hook = new PLH::IATHook();
@@ -117,7 +117,7 @@ int _tmain(int argc, _TCHAR* argv[])
 	be worried about.
 	*/
 	///x86/x64 VEH Example (GUARD_PAGE and INT3_BP)
-	VEHHook = new PLH::VEHHook();
+	/*VEHHook = new PLH::VEHHook();
 	VEHHook->SetupHook((BYTE*)&VEHTest, (BYTE*)&hkVEHTest, PLH::VEHHook::VEHMethod::GUARD_PAGE);
 	VEHHook->Hook();
 	oVEHTest = VEHHook->GetOriginal<tVEH>();
@@ -125,7 +125,7 @@ int _tmain(int argc, _TCHAR* argv[])
 	VEHHook->UnHook();
 	VEHTest(1);
 	printf("%s %s\n", (VEHHook->GetLastError().GetSeverity() == PLH::RuntimeError::Severity::NoError) ? "No Error" : "Error",
-		VEHHook->GetLastError().GetString().c_str());
+		VEHHook->GetLastError().GetString().c_str());*/
 
 	Sleep(100000);
 	return 0;

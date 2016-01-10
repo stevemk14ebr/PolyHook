@@ -1,10 +1,10 @@
 #include "PolyHook.h"
-void XTrace(char* lpszFormat, ...)
+void XTrace(char* fmt, ...)
 {
 	va_list args;
-	va_start(args, lpszFormat);
+	va_start(args, fmt);
 #ifdef _DEBUG
-	vfprintf_s(stdout, lpszFormat, args);
+	vfprintf_s(stdout, fmt, args);
 #endif
 	va_end(args);
 }
@@ -34,6 +34,8 @@ const PLH::RuntimeError::Severity PLH::RuntimeError::GetSeverity() const
 void PLH::IHook::PostError(const RuntimeError& Err)
 {
 	m_LastError = Err;
+	XTrace("Posted Error [SEVERITY:%d]:\n"
+		"%s\n",Err.GetSeverity(), Err.GetString().c_str());
 }
 
 PLH::RuntimeError PLH::IHook::GetLastError() const

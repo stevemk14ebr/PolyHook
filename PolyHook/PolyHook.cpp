@@ -135,8 +135,9 @@ void PLH::AbstractDetour::RelocateASM(BYTE* Code, DWORD& CodeSize, DWORD64 From,
 				if (x86->op_count > 1) //exclude types like sub rsp,0x20
 					continue;
 
+				
 				char* mnemonic = CurIns->mnemonic;
-				if (m_ASMInfo.IsConditionalJump(mnemonic))
+				if (m_ASMInfo.IsConditionalJump(CurIns->bytes,CurIns->size))
 				{
 					RelocateConditionalJMP(CurIns, CodeSize, From, To, x86->offsets.imm_size, x86->offsets.imm_offset);
 					continue;

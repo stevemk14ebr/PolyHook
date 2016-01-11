@@ -38,52 +38,22 @@ namespace PLH {
 				return DISP::D_INVALID;
 			}
 		}
-		bool IsConditionalJump(const std::string& mnemonic)
+		bool IsConditionalJump(const BYTE* bytes,const uint16_t Size)
 		{
 			//http://unixwiz.net/techtips/x86-jumps.html
-			if (mnemonic == "jo" || mnemonic == "jno")
+			if (Size < 1)
+				return false;
+
+			if (bytes[0] == 0x0F && Size > 1)
+			{
+				if (bytes[1] >= 0x80 && bytes[1] <= 0x8F)
+					return true;
+			}
+
+			if (bytes[0] >= 0x70 && bytes[0] <= 0x7F)
 				return true;
 
-			if (mnemonic == "js" || mnemonic == "jns")
-				return true;
-
-			if (mnemonic == "je" || mnemonic == "jz")
-				return true;
-
-			if (mnemonic == "jne" || mnemonic == "jnz")
-				return true;
-
-			if (mnemonic == "jb" || mnemonic == "jnae" || mnemonic == "jc")
-				return true;
-
-			if (mnemonic == "jnb" || mnemonic == "jae" || mnemonic == "jnc")
-				return true;
-
-			if (mnemonic == "jbe" || mnemonic == "jna")
-				return true;
-
-			if (mnemonic == "ja" || mnemonic == "jnbe")
-				return true;
-
-			if (mnemonic == "jl" || mnemonic == "jnge")
-				return true;
-
-			if (mnemonic == "jge" || mnemonic == "jnl")
-				return true;
-
-			if (mnemonic == "jle" || mnemonic == "jng")
-				return true;
-
-			if (mnemonic == "jg" || mnemonic == "jnle")
-				return true;
-
-			if (mnemonic == "jp" || mnemonic == "jpe")
-				return true;
-
-			if (mnemonic == "jnp" || mnemonic == "jpo")
-				return true;
-
-			if (mnemonic == "jcxz" || mnemonic == "jecxz")
+			if (bytes[0] == 0xE3)
 				return true;
 
 			return false;

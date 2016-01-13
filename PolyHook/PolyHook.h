@@ -93,11 +93,11 @@ namespace PLH {
 	{
 	public:
 		IHook() = default;
-		virtual void Hook() = 0;
+		virtual bool Hook() = 0;
 		virtual void UnHook() = 0;
 		virtual ~IHook() = default;
-		void PostError(const RuntimeError& Err);
-		RuntimeError GetLastError() const;
+		virtual RuntimeError GetLastError() const;
+		virtual void PostError(const RuntimeError& Err);
 	protected:
 		RuntimeError m_LastError;
 	};
@@ -161,7 +161,7 @@ namespace PLH {
 		X86Detour();
 		virtual ~X86Detour();
 
-		virtual void Hook() override;
+		virtual bool Hook() override;
 	protected:
 		virtual x86_reg GetIpReg() override;
 		virtual void FreeTrampoline();
@@ -180,7 +180,7 @@ namespace PLH {
 		X64Detour();
 		virtual ~X64Detour();
 
-		virtual void Hook() override;
+		virtual bool Hook() override;
 	protected:
 		virtual x86_reg GetIpReg() override;
 		virtual void FreeTrampoline() override;
@@ -197,7 +197,7 @@ namespace PLH {
 	public:
 		VFuncSwap() = default;
 		virtual ~VFuncSwap() = default;
-		virtual void Hook() override;
+		virtual bool Hook() override;
 		virtual void UnHook() override;
 		void SetupHook(BYTE** Vtable, const int Index, BYTE* Dest);
 		template<typename T>
@@ -218,7 +218,7 @@ namespace PLH {
 	public:
 		VFuncDetour();
 		virtual ~VFuncDetour();
-		virtual void Hook() override;
+		virtual bool Hook() override;
 		virtual void UnHook() override;
 		void SetupHook(BYTE** Vtable, const int Index, BYTE* Dest);
 		template<typename T>
@@ -226,6 +226,8 @@ namespace PLH {
 		{
 			return m_Detour->GetOriginal<T>();
 		}
+		virtual RuntimeError GetLastError() const override;
+		virtual void PostError(const RuntimeError& Err) override;
 	private:
 		Detour* m_Detour;
 	};
@@ -243,7 +245,7 @@ namespace PLH {
 	public:
 		VTableSwap();
 		virtual ~VTableSwap();
-		virtual void Hook() override;
+		virtual bool Hook() override;
 		template<typename T>
 		T HookAdditional(const int Index, BYTE* Dest)
 		{
@@ -280,7 +282,7 @@ namespace PLH {
 	public:
 		IATHook() = default;
 		virtual ~IATHook() = default;
-		virtual void Hook() override;
+		virtual bool Hook() override;
 		virtual void UnHook() override;
 		template<typename T>
 		T GetOriginal()
@@ -341,7 +343,7 @@ namespace PLH {
 		};
 		VEHHook();
 		virtual ~VEHHook() = default;
-		virtual void Hook() override;
+		virtual bool Hook() override;
 		virtual void UnHook() override;
 		template<typename T>
 		T GetOriginal()

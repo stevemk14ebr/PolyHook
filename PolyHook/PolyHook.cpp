@@ -246,7 +246,7 @@ PLH::X86Detour::~X86Detour()
 		delete[] m_Trampoline;
 }
 
-void PLH::X86Detour::Hook()
+bool PLH::X86Detour::Hook()
 {
 	DWORD OldProtection;
 
@@ -339,7 +339,7 @@ PLH::X64Detour::~X64Detour()
 	FreeTrampoline();
 }
 
-void PLH::X64Detour::Hook()
+bool PLH::X64Detour::Hook()
 {
 	//Allocate Memory as close as possible to src, to minimize chance 32bit displacements will be out of range (for relative jmp type)
 	MEMORY_BASIC_INFORMATION mbi;
@@ -355,7 +355,7 @@ void PLH::X64Detour::Hook()
 			break;
 	}
 	if (!m_Trampoline)
-		return;
+		return false;
 	m_NeedFree = true;
 
 	//Decide which jmp type to use based on function size
@@ -369,7 +369,7 @@ void PLH::X64Detour::Hook()
 		if (m_hkLength == 0)
 		{
 			PostError(RuntimeError(RuntimeError::Severity::UnRecoverable, "PolyHook x64Detour: Function to small to hook"));
-			return;
+			return false;
 		}
 	}
 
@@ -439,11 +439,12 @@ int PLH::X64Detour::GetJMPSize()
 #endif
 
 /*----------------------------------------------*/
-void PLH::VFuncSwap::Hook()
+bool PLH::VFuncSwap::Hook()
 {
 	MemoryProtect Protector(&m_hkVtable[m_hkIndex], sizeof(void*), PAGE_READWRITE);
 	m_OrigVFunc = m_hkVtable[m_hkIndex];
 	m_hkVtable[m_hkIndex] = m_hkDest;
+	return true;
 }
 
 void PLH::VFuncSwap::UnHook()
@@ -470,9 +471,9 @@ PLH::VFuncDetour::~VFuncDetour()
 	delete m_Detour;
 }
 
-void PLH::VFuncDetour::Hook()
+bool PLH::VFuncDetour::Hook()
 {
-	m_Detour->Hook();
+	return m_Detour->Hook();
 }
 
 void PLH::VFuncDetour::UnHook()
@@ -485,6 +486,15 @@ void PLH::VFuncDetour::SetupHook(BYTE** Vtable, const int Index, BYTE* Dest)
 	m_Detour->SetupHook(Vtable[Index], Dest);
 }
 
+PLH::RuntimeError PLH::VFuncDetour::GetLastError() const
+{
+	return m_Detour->GetLastError();
+}
+
+void PLH::VFuncDetour::PostError(const RuntimeError& Err)
+{
+	m_Detour->PostError(Err);
+}
 /*----------------------------------------------*/
 PLH::VTableSwap::VTableSwap() :IHook()
 {
@@ -496,7 +506,7 @@ PLH::VTableSwap::~VTableSwap()
 	FreeNewVtable();
 }
 
-void PLH::VTableSwap::Hook()
+bool PLH::VTableSwap::Hook()
 {
 	MemoryProtect Protector(m_phkClass, sizeof(void*), PAGE_READWRITE);
 	m_OrigVtable = *m_phkClass;
@@ -507,6 +517,7 @@ void PLH::VTableSwap::Hook()
 	memcpy(m_NewVtable, m_OrigVtable, sizeof(void*)*m_VFuncCount);
 	*m_phkClass = m_NewVtable;
 	m_NewVtable[m_hkIndex] = m_hkDest;
+	return true;
 }
 
 void PLH::VTableSwap::UnHook()
@@ -544,15 +555,19 @@ void PLH::VTableSwap::FreeNewVtable()
 }
 
 /*----------------------------------------------*/
-void PLH::IATHook::Hook()
+bool PLH::IATHook::Hook()
 {
 	PIMAGE_THUNK_DATA Thunk;
-	if (!FindIATFunc(m_hkLibraryName.c_str(), m_hkSrcFunc.c_str(), &Thunk,m_hkModuleName.c_str()))
-		return;
+	if (!FindIATFunc(m_hkLibraryName.c_str(), m_hkSrcFunc.c_str(), &Thunk, m_hkModuleName.c_str()))
+	{
+		PostError(RuntimeError(RuntimeError::Severity::UnRecoverable, "PolyHook IATHook: Failed to find import"));
+		return false;
+	}
 
 	MemoryProtect Protector(Thunk, sizeof(ULONG_PTR), PAGE_EXECUTE_READWRITE);
 	m_pIATFuncOrig = (void*)Thunk->u1.Function;
 	Thunk->u1.Function = (ULONG_PTR)m_hkDest;
+	return true;
 }
 
 void PLH::IATHook::UnHook()
@@ -660,7 +675,7 @@ void PLH::VEHHook::SetupHook(BYTE* Src, BYTE* Dest,VEHMethod Method)
 	m_ThisCtx = Ctx;
 }
 
-void PLH::VEHHook::Hook()
+bool PLH::VEHHook::Hook()
 {
 	//Lock the TargetMutex for thread safe vector operations
 	std::lock_guard<std::mutex> m_Lock(m_TargetMutex);
@@ -681,21 +696,21 @@ void PLH::VEHHook::Hook()
 		if (mbi.Protect & PAGE_NOACCESS)
 		{
 			PostError(RuntimeError(RuntimeError::Severity::UnRecoverable, "PolyHook VEH: Cannot hook page with NOACCESS Flag"));
-			return;
+			return false;
 		}
 
 		if (AreInSamePage((BYTE*)&PLH::VEHHook::VEHHandler, m_ThisCtx.m_Src))
 		{
 			PostError(RuntimeError(RuntimeError::Severity::UnRecoverable, "PolyHook VEH: Cannot hook page on same page as the VEH\n"));
-			return;
+			return false;
 		}
 
 		//!!!!COMPILER SPECIFIC HACK HERE!!!!!
-		void(PLH::VEHHook::* pHookFunc)(void) = &PLH::VEHHook::Hook;
+		bool(PLH::VEHHook::* pHookFunc)(void) = &PLH::VEHHook::Hook;
 		if (AreInSamePage((BYTE*&)pHookFunc, m_ThisCtx.m_Src))
 		{
 			PostError(RuntimeError(RuntimeError::Severity::UnRecoverable, "PolyHook VEH: Cannot hook page on same page as the hooking function\n"));
-			return;
+			return false;
 		}
 		
 		m_HookTargets.push_back(m_ThisCtx);
@@ -704,6 +719,7 @@ void PLH::VEHHook::Hook()
 		DWORD OldProtection;
 		VirtualProtect(m_ThisCtx.m_Src, 1 ,PAGE_EXECUTE_READWRITE | PAGE_GUARD, &OldProtection);
 	}
+	return true;
 }
 
 void PLH::VEHHook::UnHook()

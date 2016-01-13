@@ -255,7 +255,7 @@ bool PLH::X86Detour::Hook()
 	if (m_hkLength == 0)
 	{
 		XTrace("Function to small to hook\n");
-		return;
+		return false;
 	}
 
 	m_Trampoline = new BYTE[m_hkLength + 30];   //Allocate Space for original plus extra to jump back and for jmp table
@@ -279,7 +279,7 @@ bool PLH::X86Detour::Hook()
 	//Revert to old protection on original function
 	VirtualProtect(m_hkSrc, m_hkLength, OldProtection, &OldProtection);
 	PostError(RuntimeError(RuntimeError::Severity::Warning, "PolyHook x86Detour: Some opcodes may not be relocated properly"));
-
+	return true;
 	/*Original
 	-JMP Destination
 	-NOP (extends to length of overwritten opcode)
@@ -400,6 +400,7 @@ bool PLH::X64Detour::Hook()
 
 	FlushInstructionCache(GetCurrentProcess(), m_hkSrc, m_hkLength);
 	PostError(RuntimeError(RuntimeError::Severity::Warning, "PolyHook x64Detour: Relocation can be out of range"));
+	return true;
 }
 
 x86_reg PLH::X64Detour::GetIpReg()

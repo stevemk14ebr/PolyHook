@@ -66,22 +66,22 @@ public:
 int _tmain(int argc, _TCHAR* argv[])
 {
 	///X86/x64 Detour Example
-	PLH::Detour* Hook = new PLH::Detour();
-	Hook->SetupHook((BYTE*)&MessageBoxA,(BYTE*) &hkMessageBoxA); //can cast to byte* to
-	Hook->Hook();
-	oMessageBoxA = Hook->GetOriginal<tMessageBoxA>();
-	MessageBoxA(NULL, "Message", "Sample", MB_OK);
-	Hook->UnHook();
-	MessageBoxA(NULL, "Message", "Sample", MB_OK);
+	//PLH::Detour* Hook = new PLH::Detour();
+	//Hook->SetupHook((BYTE*)&MessageBoxA,(BYTE*) &hkMessageBoxA); //can cast to byte* to
+	//Hook->Hook();
+	//oMessageBoxA = Hook->GetOriginal<tMessageBoxA>();
+	//MessageBoxA(NULL, "Message", "Sample", MB_OK);
+	//Hook->UnHook();
+	//MessageBoxA(NULL, "Message", "Sample", MB_OK);
 
 	///x86/x64 IAT Hook Example
-	/*PLH::IATHook* Hook = new PLH::IATHook();
+	PLH::IATHook* Hook = new PLH::IATHook();
 	Hook->SetupHook("kernel32.dll", "GetCurrentThreadId", (BYTE*)&hkGetCurrentThreadId);
 	Hook->Hook();
 	oGetCurrentThreadID = Hook->GetOriginal<tGetCurrentThreadId>();
 	printf("Thread ID:%d \n", GetCurrentThreadId());
 	Hook->UnHook();
-	printf("Real Thread ID:%d\n", GetCurrentThreadId());*/
+	printf("Real Thread ID:%d\n", GetCurrentThreadId());
 
 	///x86/x64 VFuncDetour Example
 	//VirtualTest* ClassToHook = new VirtualTest();

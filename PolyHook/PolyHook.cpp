@@ -596,6 +596,12 @@ bool PLH::IATHook::FindIATFunc(const char* LibraryName,const char* FuncName, PIM
 		UseModuleName = false;
 
 	HINSTANCE hInst = GetModuleHandleA(UseModuleName ? Module:NULL);
+	if (!hInst)
+	{
+		PostError(RuntimeError(RuntimeError::Severity::UnRecoverable, "PolyHook IATHook:Failed to find Module"));
+		return false;
+	}
+
 	ULONG Sz;
 	PIMAGE_IMPORT_DESCRIPTOR pImports = (PIMAGE_IMPORT_DESCRIPTOR)
 		ImageDirectoryEntryToDataEx(hInst, TRUE, IMAGE_DIRECTORY_ENTRY_IMPORT, &Sz, nullptr);
@@ -610,29 +616,41 @@ bool PLH::IATHook::FindIATFunc(const char* LibraryName,const char* FuncName, PIM
 		PIMAGE_THUNK_DATA pOriginalThunk = (PIMAGE_THUNK_DATA)
 			ResolveRVA(hInst, pImports->OriginalFirstThunk);
 
-		//FirstThunk is overwritten by PE with API addresses, we change this
+		//FirstThunk is overwritten by loader with API addresses, we change this
 		PIMAGE_THUNK_DATA pThunk = (PIMAGE_THUNK_DATA)
 			ResolveRVA(hInst, pImports->FirstThunk);
 		
+		if (!pOriginalThunk)
+		{
+			PostError(RuntimeError(RuntimeError::Severity::Critical, "PolyHook IATHook:PE Files without OriginalFirstThunk are unsupported"));
+			return false;
+		}
+
 		//Table is null terminated, increment both tables
 		for (; pOriginalThunk->u1.Function != NULL; pOriginalThunk++,pThunk++)
 		{
-			if (pOriginalThunk->u1.Ordinal & IMAGE_ORDINAL_FLAG)
+			if (IMAGE_SNAP_BY_ORDINAL(pOriginalThunk->u1.Ordinal))
+			{
+				XTrace("Import By Ordinal:[Ordinal:%d]\n",IMAGE_ORDINAL(pOriginalThunk->u1.Ordinal));
 				continue;
+			}
 
 			PIMAGE_IMPORT_BY_NAME pImport = (PIMAGE_IMPORT_BY_NAME)
 				ResolveRVA(hInst, pOriginalThunk->u1.AddressOfData);
 
+			XTrace("Import By Name: [Ordinal:%d] [Name:%s]\n", IMAGE_ORDINAL(pOriginalThunk->u1.Ordinal),pImport->Name);
+
 			//Check the name of API given by OriginalFirthThunk
 			if (_stricmp(FuncName, pImport->Name) != 0)
 				continue;
-
-			/*Name matched in OriginalFirthThunk, return FirstThunk
+			
+			/*Name matched in OriginalFirstThunk, return FirstThunk
 			so we can changed it's address*/
 			*pFuncThunkOut = pThunk;
 			return true;
 		}
 	}
+	PostError(RuntimeError(RuntimeError::Severity::UnRecoverable, "PolyHook IATHook:Failed to find import"));
 	return false;
 }
 
@@ -702,7 +720,7 @@ bool PLH::VEHHook::Hook()
 
 		if (AreInSamePage((BYTE*)&PLH::VEHHook::VEHHandler, m_ThisCtx.m_Src))
 		{
-			PostError(RuntimeError(RuntimeError::Severity::UnRecoverable, "PolyHook VEH: Cannot hook page on same page as the VEH\n"));
+			PostError(RuntimeError(RuntimeError::Severity::UnRecoverable, "PolyHook VEH: Cannot hook page on same page as the VEH"));
 			return false;
 		}
 
@@ -710,7 +728,7 @@ bool PLH::VEHHook::Hook()
 		bool(PLH::VEHHook::* pHookFunc)(void) = &PLH::VEHHook::Hook;
 		if (AreInSamePage((BYTE*&)pHookFunc, m_ThisCtx.m_Src))
 		{
-			PostError(RuntimeError(RuntimeError::Severity::UnRecoverable, "PolyHook VEH: Cannot hook page on same page as the hooking function\n"));
+			PostError(RuntimeError(RuntimeError::Severity::UnRecoverable, "PolyHook VEH: Cannot hook page on same page as the hooking function"));
 			return false;
 		}
 		

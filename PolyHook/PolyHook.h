@@ -338,6 +338,7 @@ namespace PLH {
 		enum class VEHMethod
 		{
 			INT3_BP,
+			HARDWARE_BP,
 			GUARD_PAGE,
 			ERROR_TYPE
 		};
@@ -371,7 +372,11 @@ namespace PLH {
 			VEHMethod m_Type;
 			BYTE* m_Src;
 			BYTE* m_Dest;
-			BYTE m_OriginalByte;
+			BYTE m_StorageByte; 
+			/*Different methods store different things in this byte,
+			INT3_BP = hold the byte overwritten
+			HARDWARE_BP = the index of the debug register we used
+			GUARD_PAGE = unused*/
 
 			HookCtx(BYTE* Src, BYTE* Dest,VEHMethod Method)
 			{

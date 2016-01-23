@@ -9,6 +9,7 @@
 #include <algorithm>
 #pragma comment(lib,"Dbghelp.lib")
 #pragma comment(lib,"capstone.lib")
+
 namespace PLH {
 	class ASMHelper
 	{
@@ -37,52 +38,22 @@ namespace PLH {
 				return DISP::D_INVALID;
 			}
 		}
-		bool IsConditionalJump(const std::string& mneumonic)
+		bool IsConditionalJump(const BYTE* bytes,const uint16_t Size)
 		{
 			//http://unixwiz.net/techtips/x86-jumps.html
-			if (mneumonic == "jo" || mneumonic == "jno")
+			if (Size < 1)
+				return false;
+
+			if (bytes[0] == 0x0F && Size > 1)
+			{
+				if (bytes[1] >= 0x80 && bytes[1] <= 0x8F)
+					return true;
+			}
+
+			if (bytes[0] >= 0x70 && bytes[0] <= 0x7F)
 				return true;
 
-			if (mneumonic == "js" || mneumonic == "jns")
-				return true;
-
-			if (mneumonic == "je" || mneumonic == "jz")
-				return true;
-
-			if (mneumonic == "jne" || mneumonic == "jnz")
-				return true;
-
-			if (mneumonic == "jb" || mneumonic == "jnae" || mneumonic == "jc")
-				return true;
-
-			if (mneumonic == "jnb" || mneumonic == "jae" || mneumonic == "jnc")
-				return true;
-
-			if (mneumonic == "jbe" || mneumonic == "jna")
-				return true;
-
-			if (mneumonic == "ja" || mneumonic == "jnbe")
-				return true;
-
-			if (mneumonic == "jl" || mneumonic == "jnge")
-				return true;
-
-			if (mneumonic == "jge" || mneumonic == "jnl")
-				return true;
-
-			if (mneumonic == "jle" || mneumonic == "jng")
-				return true;
-
-			if (mneumonic == "jg" || mneumonic == "jnle")
-				return true;
-
-			if (mneumonic == "jp" || mneumonic == "jpe")
-				return true;
-
-			if (mneumonic == "jnp" || mneumonic == "jpo")
-				return true;
-
-			if (mneumonic == "jcxz" || mneumonic == "jecxz")
+			if (bytes[0] == 0xE3)
 				return true;
 
 			return false;
@@ -98,7 +69,7 @@ namespace PLH {
 		}
 	};
 
-	class IError
+	class RuntimeError
 	{
 	public:
 		enum class Severity
@@ -108,11 +79,11 @@ namespace PLH {
 			UnRecoverable, //Definitely have an issue, it's serious
 			NoError //Default
 		};
-		IError();
-		IError(Severity Sev, const std::string& Msg);
-		virtual ~IError() = default;
-		Severity GetSeverity() const;
-		std::string GetString() const;
+		RuntimeError();
+		RuntimeError(Severity Sev, const std::string& Msg);
+		virtual ~RuntimeError() = default;
+		const Severity GetSeverity() const;
+		const std::string GetString() const;
 	private:
 		Severity m_Severity;
 		std::string m_Message;
@@ -122,20 +93,20 @@ namespace PLH {
 	{
 	public:
 		IHook() = default;
-		virtual void Hook() = 0;
+		virtual bool Hook() = 0;
 		virtual void UnHook() = 0;
 		virtual ~IHook() = default;
-		void PostError(const IError& Err);
-		IError GetLastError() const;
+		virtual RuntimeError GetLastError() const;
+		virtual void PostError(const RuntimeError& Err);
 	protected:
-		IError m_LastError;
+		RuntimeError m_LastError;
 	};
 
-	class IDetour :public IHook
+	class AbstractDetour :public IHook
 	{
 	public:
-		IDetour();
-		virtual ~IDetour();
+		AbstractDetour();
+		virtual ~AbstractDetour();
 		template<typename T>
 		void SetupHook(T* Src, T* Dest)
 		{
@@ -184,13 +155,13 @@ namespace PLH {
 #ifndef _WIN64
 #define Detour X86Detour
 	//x86 5 Byte Detour
-	class X86Detour :public IDetour
+	class X86Detour :public AbstractDetour
 	{
 	public:
 		X86Detour();
-		~X86Detour();
+		virtual ~X86Detour();
 
-		virtual void Hook() override;
+		virtual bool Hook() override;
 	protected:
 		virtual x86_reg GetIpReg() override;
 		virtual void FreeTrampoline();
@@ -202,14 +173,14 @@ namespace PLH {
 #else
 #define Detour X64Detour
 	//X64 6 Byte Detour
-	class X64Detour :public IDetour
+	class X64Detour :public AbstractDetour
 	{
 	public:
 		//Credits DarthTon, evolution536
 		X64Detour();
-		~X64Detour();
+		virtual ~X64Detour();
 
-		virtual void Hook() override;
+		virtual bool Hook() override;
 	protected:
 		virtual x86_reg GetIpReg() override;
 		virtual void FreeTrampoline() override;
@@ -225,8 +196,8 @@ namespace PLH {
 	{
 	public:
 		VFuncSwap() = default;
-		~VFuncSwap() = default;
-		virtual void Hook() override;
+		virtual ~VFuncSwap() = default;
+		virtual bool Hook() override;
 		virtual void UnHook() override;
 		void SetupHook(BYTE** Vtable, const int Index, BYTE* Dest);
 		template<typename T>
@@ -246,8 +217,8 @@ namespace PLH {
 	{
 	public:
 		VFuncDetour();
-		~VFuncDetour();
-		virtual void Hook() override;
+		virtual ~VFuncDetour();
+		virtual bool Hook() override;
 		virtual void UnHook() override;
 		void SetupHook(BYTE** Vtable, const int Index, BYTE* Dest);
 		template<typename T>
@@ -255,6 +226,8 @@ namespace PLH {
 		{
 			return m_Detour->GetOriginal<T>();
 		}
+		virtual RuntimeError GetLastError() const override;
+		virtual void PostError(const RuntimeError& Err) override;
 	private:
 		Detour* m_Detour;
 	};
@@ -271,8 +244,8 @@ namespace PLH {
 	{
 	public:
 		VTableSwap();
-		~VTableSwap();
-		virtual void Hook() override;
+		virtual ~VTableSwap();
+		virtual bool Hook() override;
 		template<typename T>
 		T HookAdditional(const int Index, BYTE* Dest)
 		{
@@ -308,8 +281,8 @@ namespace PLH {
 	{
 	public:
 		IATHook() = default;
-		~IATHook() = default;
-		virtual void Hook() override;
+		virtual ~IATHook() = default;
+		virtual bool Hook() override;
 		virtual void UnHook() override;
 		template<typename T>
 		T GetOriginal()
@@ -324,21 +297,6 @@ namespace PLH {
 		std::string m_hkModuleName;
 		BYTE* m_hkDest;
 		void* m_pIATFuncOrig;
-	};
-
-	class MemoryProtectDelay
-	{
-	public:
-		void RestoreOriginal();
-		void SetProtection(DWORD ProtectionFlags);
-		void ApplyProtection();
-		MemoryProtectDelay(void* Address, size_t Size);
-	private:
-		DWORD m_OriginalProtection;
-		DWORD m_PreviousProtection;
-		DWORD m_DesiredProtection;
-		size_t m_Size;
-		void* m_Address;
 	};
 
 	template<typename Func>
@@ -384,13 +342,13 @@ namespace PLH {
 			ERROR_TYPE
 		};
 		VEHHook();
-		~VEHHook() = default;
-		virtual void Hook() override;
+		virtual ~VEHHook() = default;
+		virtual bool Hook() override;
 		virtual void UnHook() override;
 		template<typename T>
 		T GetOriginal()
 		{
-			return (T)m_ThisInstance.m_Src;
+			return (T)m_ThisCtx.m_Src;
 		}
 		void SetupHook(BYTE* Src, BYTE* Dest,VEHMethod Method);
 
@@ -398,13 +356,13 @@ namespace PLH {
 		{
 				//Return an object to restore INT3_BP after callback is done
 			return finally([&]() {
-				if (m_ThisInstance.m_Type == VEHMethod::INT3_BP)
+				if (m_ThisCtx.m_Type == VEHMethod::INT3_BP)
 				{
-					MemoryProtect Protector(m_ThisInstance.m_Src, 1, PAGE_EXECUTE_READWRITE);
-					*m_ThisInstance.m_Src = 0xCC;
-				}else if (m_ThisInstance.m_Type == VEHMethod::GUARD_PAGE) {
+					MemoryProtect Protector(m_ThisCtx.m_Src, 1, PAGE_EXECUTE_READWRITE);
+					*m_ThisCtx.m_Src = 0xCC;
+				}else if (m_ThisCtx.m_Type == VEHMethod::GUARD_PAGE) {
 					DWORD OldProtection;
-					VirtualProtect(m_ThisInstance.m_Src, 1, PAGE_EXECUTE_READWRITE | PAGE_GUARD, &OldProtection);
+					VirtualProtect(m_ThisCtx.m_Src, 1, PAGE_EXECUTE_READWRITE | PAGE_GUARD, &OldProtection);
 				}
 			});
 		}
@@ -437,7 +395,7 @@ namespace PLH {
 		static LONG CALLBACK VEHHandler(EXCEPTION_POINTERS* ExceptionInfo);
 		static std::vector<HookCtx> m_HookTargets;
 		static std::mutex m_TargetMutex;
-		HookCtx m_ThisInstance;
+		HookCtx m_ThisCtx;
 		DWORD m_PageSize;
 	};
 }//end PLH namespace

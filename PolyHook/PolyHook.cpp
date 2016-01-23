@@ -1,37 +1,49 @@
 #include "PolyHook.h"
-PLH::IError::IError()
+void XTrace(char* fmt, ...)
+{
+	va_list args;
+	va_start(args, fmt);
+#ifdef _DEBUG
+	vfprintf_s(stdout, fmt, args);
+#endif
+	va_end(args);
+}
+
+PLH::RuntimeError::RuntimeError()
 {
 	m_Message = "";
 	m_Severity = Severity::NoError;
 }
 
-PLH::IError::IError(Severity Sev, const std::string& Msg)
+PLH::RuntimeError::RuntimeError(Severity Sev, const std::string& Msg)
 {
 	m_Severity = Sev;
 	m_Message = Msg;
 }
 
-std::string PLH::IError::GetString() const
+const std::string PLH::RuntimeError::GetString() const
 {
 	return m_Message;
 }
 
-PLH::IError::Severity PLH::IError::GetSeverity() const
+const PLH::RuntimeError::Severity PLH::RuntimeError::GetSeverity() const
 {
 	return m_Severity;
 }
 
-void PLH::IHook::PostError(const IError& Err)
+void PLH::IHook::PostError(const RuntimeError& Err)
 {
 	m_LastError = Err;
+	XTrace("Posted Error [SEVERITY:%d]:\n"
+		"%s\n",Err.GetSeverity(), Err.GetString().c_str());
 }
 
-PLH::IError PLH::IHook::GetLastError() const
+PLH::RuntimeError PLH::IHook::GetLastError() const
 {
 	return m_LastError;
 }
 
-PLH::IDetour::IDetour() :IHook(), m_NeedFree(false)
+PLH::AbstractDetour::AbstractDetour() :IHook(), m_NeedFree(false)
 {
 #ifdef _WIN64
 	Initialize(CS_MODE_64);
@@ -40,33 +52,33 @@ PLH::IDetour::IDetour() :IHook(), m_NeedFree(false)
 #endif // _WIN64
 }
 
-PLH::IDetour::~IDetour()
+PLH::AbstractDetour::~AbstractDetour()
 {
 	cs_close(&m_CapstoneHandle);
 }
 
-void PLH::IDetour::SetupHook(BYTE* Src, BYTE* Dest)
+void PLH::AbstractDetour::SetupHook(BYTE* Src, BYTE* Dest)
 {
 	m_hkSrc = Src;
 	m_hkDest = Dest;
 }
 
-void PLH::IDetour::UnHook()
+void PLH::AbstractDetour::UnHook()
 {
-	MemoryProtect Protector = MemoryProtect(m_hkSrc, m_hkLength, PAGE_EXECUTE_READWRITE);
+	MemoryProtect Protector(m_hkSrc, m_hkLength, PAGE_EXECUTE_READWRITE);
 	memcpy(m_hkSrc, m_OriginalCode, m_OriginalLength); //Copy original from trampoline back to src
 	FlushSrcInsCache();
 	FreeTrampoline();
 }
 
-DWORD PLH::IDetour::CalculateLength(BYTE* Src, DWORD NeededLength)
+DWORD PLH::AbstractDetour::CalculateLength(BYTE* Src, DWORD NeededLength)
 {
 	//Grab First 100 bytes of function, disasm until invalid instruction
 	cs_insn* InstructionInfo;
 	size_t InstructionCount = cs_disasm(m_CapstoneHandle, Src, 0x100, (uint64_t)Src, 0, &InstructionInfo);
 
 	//Loop over instructions until we have at least NeededLength's Size
-	printf("\nORIGINAL:\n");
+	XTrace("\nORIGINAL:\n");
 	DWORD InstructionSize = 0;
 	bool BigEnough = false;
 	for (int i = 0; i < InstructionCount && !BigEnough; i++)
@@ -76,10 +88,10 @@ DWORD PLH::IDetour::CalculateLength(BYTE* Src, DWORD NeededLength)
 		if (InstructionSize >= NeededLength)
 			BigEnough = true;
 
-		printf("%I64X [%d]: ", CurIns->address, CurIns->size);
+		XTrace("%I64X [%d]: ", CurIns->address, CurIns->size);
 		for (int j = 0; j < CurIns->size; j++)
-			printf("%02X ", CurIns->bytes[j]);
-		printf("%s %s\n", CurIns->mnemonic, CurIns->op_str);
+			XTrace("%02X ", CurIns->bytes[j]);
+		XTrace("%s %s\n", CurIns->mnemonic, CurIns->op_str);
 	}
 	if (!BigEnough)
 		InstructionSize = 0;
@@ -88,21 +100,21 @@ DWORD PLH::IDetour::CalculateLength(BYTE* Src, DWORD NeededLength)
 	return InstructionSize;
 }
 
-void PLH::IDetour::RelocateASM(BYTE* Code, DWORD& CodeSize, DWORD64 From, DWORD64 To)
+void PLH::AbstractDetour::RelocateASM(BYTE* Code, DWORD& CodeSize, DWORD64 From, DWORD64 To)
 {
 	cs_insn* InstructionInfo;
 	size_t InstructionCount = cs_disasm(m_CapstoneHandle, Code, CodeSize, (uint64_t)Code, 0, &InstructionInfo);
 
-	printf("\nTrampoline:\n");
+	XTrace("\nTrampoline:\n");
 	for (int i = 0; i < InstructionCount; i++)
 	{
 		cs_insn* CurIns = (cs_insn*)&InstructionInfo[i];
 		cs_x86* x86 = &(CurIns->detail->x86);
 
-		printf("%I64X: ", CurIns->address);
+		XTrace("%I64X: ", CurIns->address);
 		for (int j = 0; j < CurIns->size; j++)
-			printf("%02X ", CurIns->bytes[j]);
-		printf("%s %s\n", CurIns->mnemonic,CurIns->op_str);
+			XTrace("%02X ", CurIns->bytes[j]);
+		XTrace("%s %s\n", CurIns->mnemonic,CurIns->op_str);
 
 		for (int j = 0; j < x86->op_count; j++)
 		{
@@ -123,8 +135,9 @@ void PLH::IDetour::RelocateASM(BYTE* Code, DWORD& CodeSize, DWORD64 From, DWORD6
 				if (x86->op_count > 1) //exclude types like sub rsp,0x20
 					continue;
 
+				
 				char* mnemonic = CurIns->mnemonic;
-				if (m_ASMInfo.IsConditionalJump(mnemonic))
+				if (m_ASMInfo.IsConditionalJump(CurIns->bytes,CurIns->size))
 				{
 					RelocateConditionalJMP(CurIns, CodeSize, From, To, x86->offsets.imm_size, x86->offsets.imm_offset);
 					continue;
@@ -139,24 +152,23 @@ void PLH::IDetour::RelocateASM(BYTE* Code, DWORD& CodeSize, DWORD64 From, DWORD6
 		}
 	}
 
-	printf("\nFixed Trampoline\n");
+	XTrace("\nFixed Trampoline\n");
 	InstructionCount = cs_disasm(m_CapstoneHandle, Code, CodeSize, (uint64_t)Code, 0, &InstructionInfo);
 	for (int i = 0; i < InstructionCount; i++)
 	{
 		cs_insn* CurIns = (cs_insn*)&InstructionInfo[i];
-		cs_x86* x86 = &(CurIns->detail->x86);
 
-		printf("%I64X: ", CurIns->address);
+		XTrace("%I64X: ", CurIns->address);
 		for (int j = 0; j < CurIns->size; j++)
-			printf("%02X ", CurIns->bytes[j]);
-		printf("%s %s\n", CurIns->mnemonic, CurIns->op_str);
+			XTrace("%02X ", CurIns->bytes[j]);
+		XTrace("%s %s\n", CurIns->mnemonic, CurIns->op_str);
 	}
 	cs_free(InstructionInfo, InstructionCount);
 }
 
-void PLH::IDetour::_Relocate(cs_insn* CurIns, DWORD64 From, DWORD64 To, const uint8_t DispSize, const uint8_t DispOffset)
+void PLH::AbstractDetour::_Relocate(cs_insn* CurIns, DWORD64 From, DWORD64 To, const uint8_t DispSize, const uint8_t DispOffset)
 {
-	printf("Relocating...\n");
+	XTrace("Relocating...\n");
 
 	ASMHelper::DISP DispType = m_ASMInfo.GetDisplacementType(DispSize);
 	if (DispType == ASMHelper::DISP::D_INT8)
@@ -165,30 +177,30 @@ void PLH::IDetour::_Relocate(cs_insn* CurIns, DWORD64 From, DWORD64 To, const ui
 		Disp -= (To - From);
 		*(int8_t*)(CurIns->address + DispOffset) = Disp;
 	}else if (DispType == ASMHelper::DISP::D_INT16) {
-		int16_t Disp = Disp = m_ASMInfo.GetDisplacement<int16_t>(CurIns->bytes, DispOffset);
+		int16_t Disp = m_ASMInfo.GetDisplacement<int16_t>(CurIns->bytes, DispOffset);
 		Disp -= (To - From);
 		*(int16_t*)(CurIns->address + DispOffset) = Disp;
 	}else if (DispType == ASMHelper::DISP::D_INT32) {
-		int32_t Disp = Disp = m_ASMInfo.GetDisplacement<int32_t>(CurIns->bytes, DispOffset);
+		int32_t Disp = m_ASMInfo.GetDisplacement<int32_t>(CurIns->bytes, DispOffset);
 		Disp -= (To - From);
 		*(int32_t*)(CurIns->address + DispOffset) = Disp;
 	}
 }
 
-void PLH::IDetour::FlushSrcInsCache()
+void PLH::AbstractDetour::FlushSrcInsCache()
 {
 	FlushInstructionCache(GetCurrentProcess(), m_hkSrc, m_hkLength);
 }
 
-void PLH::IDetour::Initialize(cs_mode Mode)
+void PLH::AbstractDetour::Initialize(cs_mode Mode)
 {
 	if (cs_open(CS_ARCH_X86, Mode, &m_CapstoneHandle) != CS_ERR_OK)
-		printf("Error Initializing Capstone x86\n");
+		XTrace("Error Initializing Capstone x86\n");
 
 	cs_option(m_CapstoneHandle, CS_OPT_DETAIL, CS_OPT_ON);
 }
 
-void PLH::IDetour::RelocateConditionalJMP(cs_insn* CurIns, DWORD& CodeSize, DWORD64 From, DWORD64 To, const uint8_t DispSize, const uint8_t DispOffset)
+void PLH::AbstractDetour::RelocateConditionalJMP(cs_insn* CurIns, DWORD& CodeSize, DWORD64 From, DWORD64 To, const uint8_t DispSize, const uint8_t DispOffset)
 {
 	/*This function automatically begins to build a jump table at the end of the trampoline to allow relative jumps to function properly:
 	-Changes relative jump to point to an absolute jump
@@ -223,7 +235,7 @@ void PLH::IDetour::RelocateConditionalJMP(cs_insn* CurIns, DWORD& CodeSize, DWOR
 
 /*----------------------------------------------*/
 #ifndef _WIN64
-PLH::X86Detour::X86Detour() : IDetour()
+PLH::X86Detour::X86Detour() : AbstractDetour()
 {
 
 }
@@ -234,7 +246,7 @@ PLH::X86Detour::~X86Detour()
 		delete[] m_Trampoline;
 }
 
-void PLH::X86Detour::Hook()
+bool PLH::X86Detour::Hook()
 {
 	DWORD OldProtection;
 
@@ -242,8 +254,8 @@ void PLH::X86Detour::Hook()
 	m_OriginalLength = m_hkLength;
 	if (m_hkLength == 0)
 	{
-		printf("Function to small to hook\n");
-		return;
+		XTrace("Function to small to hook\n");
+		return false;
 	}
 
 	m_Trampoline = new BYTE[m_hkLength + 30];   //Allocate Space for original plus extra to jump back and for jmp table
@@ -256,7 +268,7 @@ void PLH::X86Detour::Hook()
 	WriteRelativeJMP((DWORD)&m_Trampoline[m_hkLength], (DWORD)m_hkSrc + m_hkLength); //JMP back to original code
 
 	//Change protection to allow write on original function
-	MemoryProtect Protector = MemoryProtect(m_hkSrc, m_hkLength, PAGE_EXECUTE_READWRITE);
+	MemoryProtect Protector(m_hkSrc, m_hkLength, PAGE_EXECUTE_READWRITE);
 	//Encode Jump from Hooked Function to the Destination function
 	WriteRelativeJMP((DWORD)m_hkSrc, (DWORD)m_hkDest);
 
@@ -266,8 +278,8 @@ void PLH::X86Detour::Hook()
 	FlushSrcInsCache();
 	//Revert to old protection on original function
 	VirtualProtect(m_hkSrc, m_hkLength, OldProtection, &OldProtection);
-	PostError(IError(IError::Severity::Warning, "PolyHook x86Detour: Some opcodes may not be relocated properly"));
-
+	PostError(RuntimeError(RuntimeError::Severity::Warning, "PolyHook x86Detour: Some opcodes may not be relocated properly"));
+	return true;
 	/*Original
 	-JMP Destination
 	-NOP (extends to length of overwritten opcode)
@@ -317,7 +329,7 @@ int PLH::X86Detour::GetJMPSize()
 	return 5;
 }
 #else
-PLH::X64Detour::X64Detour() :IDetour()
+PLH::X64Detour::X64Detour() :AbstractDetour()
 {
 
 }
@@ -327,7 +339,7 @@ PLH::X64Detour::~X64Detour()
 	FreeTrampoline();
 }
 
-void PLH::X64Detour::Hook()
+bool PLH::X64Detour::Hook()
 {
 	//Allocate Memory as close as possible to src, to minimize chance 32bit displacements will be out of range (for relative jmp type)
 	MEMORY_BASIC_INFORMATION mbi;
@@ -342,9 +354,8 @@ void PLH::X64Detour::Hook()
 		if (m_Trampoline = (BYTE*)VirtualAlloc(mbi.BaseAddress, 0x1000, MEM_RESERVE | MEM_COMMIT, PAGE_EXECUTE_READWRITE))
 			break;
 	}
-
 	if (!m_Trampoline)
-		return;
+		return false;
 	m_NeedFree = true;
 
 	//Decide which jmp type to use based on function size
@@ -357,8 +368,8 @@ void PLH::X64Detour::Hook()
 		m_hkLength = CalculateLength(m_hkSrc, 6); //Smaller, less safe 6 byte (jmp could be out of bounds)
 		if (m_hkLength == 0)
 		{
-			PostError(IError(IError::Severity::UnRecoverable, "PolyHook x64Detour: Function to small to hook"));
-			return;
+			PostError(RuntimeError(RuntimeError::Severity::UnRecoverable, "PolyHook x64Detour: Function to small to hook"));
+			return false;
 		}
 	}
 
@@ -369,7 +380,7 @@ void PLH::X64Detour::Hook()
 	WriteAbsoluteJMP((DWORD64)&m_Trampoline[m_hkLength], (DWORD64)m_hkSrc + m_hkLength); 
 
 	// Build a far jump to the Destination function. (jmps not to address pointed at but to the value in the address)
-	MemoryProtect Protector = MemoryProtect(m_hkSrc, m_hkLength, PAGE_EXECUTE_READWRITE);
+	MemoryProtect Protector(m_hkSrc, m_hkLength, PAGE_EXECUTE_READWRITE);
 	int HookSize = 0;
 	if (UseRelativeJmp)
 	{
@@ -388,7 +399,8 @@ void PLH::X64Detour::Hook()
 		m_hkSrc[i] = 0x90;
 
 	FlushInstructionCache(GetCurrentProcess(), m_hkSrc, m_hkLength);
-	PostError(IError(IError::Severity::Warning, "PolyHook x64Detour: Relocation can be out of range"));
+	PostError(RuntimeError(RuntimeError::Severity::Warning, "PolyHook x64Detour: Relocation can be out of range"));
+	return true;
 }
 
 x86_reg PLH::X64Detour::GetIpReg()
@@ -428,16 +440,17 @@ int PLH::X64Detour::GetJMPSize()
 #endif
 
 /*----------------------------------------------*/
-void PLH::VFuncSwap::Hook()
+bool PLH::VFuncSwap::Hook()
 {
-	MemoryProtect Protector = MemoryProtect(&m_hkVtable[m_hkIndex], sizeof(void*), PAGE_READWRITE);
+	MemoryProtect Protector(&m_hkVtable[m_hkIndex], sizeof(void*), PAGE_READWRITE);
 	m_OrigVFunc = m_hkVtable[m_hkIndex];
 	m_hkVtable[m_hkIndex] = m_hkDest;
+	return true;
 }
 
 void PLH::VFuncSwap::UnHook()
 {
-	MemoryProtect Protector = MemoryProtect(&m_hkVtable[m_hkIndex], sizeof(void*), PAGE_READWRITE);
+	MemoryProtect Protector(&m_hkVtable[m_hkIndex], sizeof(void*), PAGE_READWRITE);
 	m_hkVtable[m_hkIndex] = m_OrigVFunc;
 }
 
@@ -459,9 +472,9 @@ PLH::VFuncDetour::~VFuncDetour()
 	delete m_Detour;
 }
 
-void PLH::VFuncDetour::Hook()
+bool PLH::VFuncDetour::Hook()
 {
-	m_Detour->Hook();
+	return m_Detour->Hook();
 }
 
 void PLH::VFuncDetour::UnHook()
@@ -474,6 +487,15 @@ void PLH::VFuncDetour::SetupHook(BYTE** Vtable, const int Index, BYTE* Dest)
 	m_Detour->SetupHook(Vtable[Index], Dest);
 }
 
+PLH::RuntimeError PLH::VFuncDetour::GetLastError() const
+{
+	return m_Detour->GetLastError();
+}
+
+void PLH::VFuncDetour::PostError(const RuntimeError& Err)
+{
+	m_Detour->PostError(Err);
+}
 /*----------------------------------------------*/
 PLH::VTableSwap::VTableSwap() :IHook()
 {
@@ -485,9 +507,9 @@ PLH::VTableSwap::~VTableSwap()
 	FreeNewVtable();
 }
 
-void PLH::VTableSwap::Hook()
+bool PLH::VTableSwap::Hook()
 {
-	MemoryProtect Protector = MemoryProtect(m_phkClass, sizeof(void*), PAGE_READWRITE);
+	MemoryProtect Protector(m_phkClass, sizeof(void*), PAGE_READWRITE);
 	m_OrigVtable = *m_phkClass;
 	m_hkOriginal = m_OrigVtable[m_hkIndex];
 	m_VFuncCount = GetVFuncCount(m_OrigVtable);
@@ -496,11 +518,12 @@ void PLH::VTableSwap::Hook()
 	memcpy(m_NewVtable, m_OrigVtable, sizeof(void*)*m_VFuncCount);
 	*m_phkClass = m_NewVtable;
 	m_NewVtable[m_hkIndex] = m_hkDest;
+	return true;
 }
 
 void PLH::VTableSwap::UnHook()
 {
-	MemoryProtect Protector = MemoryProtect(m_phkClass, sizeof(void*), PAGE_READWRITE);
+	MemoryProtect Protector(m_phkClass, sizeof(void*), PAGE_READWRITE);
 	*m_phkClass = m_OrigVtable;
 	FreeNewVtable();
 }
@@ -533,15 +556,19 @@ void PLH::VTableSwap::FreeNewVtable()
 }
 
 /*----------------------------------------------*/
-void PLH::IATHook::Hook()
+bool PLH::IATHook::Hook()
 {
 	PIMAGE_THUNK_DATA Thunk;
-	if (!FindIATFunc(m_hkLibraryName.c_str(), m_hkSrcFunc.c_str(), &Thunk,m_hkModuleName.c_str()))
-		return;
+	if (!FindIATFunc(m_hkLibraryName.c_str(), m_hkSrcFunc.c_str(), &Thunk, m_hkModuleName.c_str()))
+	{
+		PostError(RuntimeError(RuntimeError::Severity::UnRecoverable, "PolyHook IATHook: Failed to find import"));
+		return false;
+	}
 
-	MemoryProtect Protector = MemoryProtect(Thunk, sizeof(ULONG_PTR), PAGE_EXECUTE_READWRITE);
+	MemoryProtect Protector(Thunk, sizeof(ULONG_PTR), PAGE_EXECUTE_READWRITE);
 	m_pIATFuncOrig = (void*)Thunk->u1.Function;
 	Thunk->u1.Function = (ULONG_PTR)m_hkDest;
+	return true;
 }
 
 void PLH::IATHook::UnHook()
@@ -550,7 +577,7 @@ void PLH::IATHook::UnHook()
 	if (!FindIATFunc(m_hkLibraryName.c_str(), m_hkSrcFunc.c_str(), &Thunk))
 		return;
 
-	MemoryProtect Protector = MemoryProtect(Thunk, sizeof(ULONG_PTR), PAGE_EXECUTE_READWRITE);
+	MemoryProtect Protector(Thunk, sizeof(ULONG_PTR), PAGE_EXECUTE_READWRITE);
 	Thunk->u1.Function = (ULONG_PTR)m_pIATFuncOrig;
 }
 
@@ -569,6 +596,12 @@ bool PLH::IATHook::FindIATFunc(const char* LibraryName,const char* FuncName, PIM
 		UseModuleName = false;
 
 	HINSTANCE hInst = GetModuleHandleA(UseModuleName ? Module:NULL);
+	if (!hInst)
+	{
+		PostError(RuntimeError(RuntimeError::Severity::UnRecoverable, "PolyHook IATHook:Failed to find Module"));
+		return false;
+	}
+
 	ULONG Sz;
 	PIMAGE_IMPORT_DESCRIPTOR pImports = (PIMAGE_IMPORT_DESCRIPTOR)
 		ImageDirectoryEntryToDataEx(hInst, TRUE, IMAGE_DIRECTORY_ENTRY_IMPORT, &Sz, nullptr);
@@ -583,29 +616,41 @@ bool PLH::IATHook::FindIATFunc(const char* LibraryName,const char* FuncName, PIM
 		PIMAGE_THUNK_DATA pOriginalThunk = (PIMAGE_THUNK_DATA)
 			ResolveRVA(hInst, pImports->OriginalFirstThunk);
 
-		//FirstThunk is overwritten by PE with API addresses, we change this
+		//FirstThunk is overwritten by loader with API addresses, we change this
 		PIMAGE_THUNK_DATA pThunk = (PIMAGE_THUNK_DATA)
 			ResolveRVA(hInst, pImports->FirstThunk);
 		
+		if (!pOriginalThunk)
+		{
+			PostError(RuntimeError(RuntimeError::Severity::Critical, "PolyHook IATHook:PE Files without OriginalFirstThunk are unsupported"));
+			return false;
+		}
+
 		//Table is null terminated, increment both tables
 		for (; pOriginalThunk->u1.Function != NULL; pOriginalThunk++,pThunk++)
 		{
-			if (pOriginalThunk->u1.Ordinal & IMAGE_ORDINAL_FLAG)
+			if (IMAGE_SNAP_BY_ORDINAL(pOriginalThunk->u1.Ordinal))
+			{
+				XTrace("Import By Ordinal:[Ordinal:%d]\n",IMAGE_ORDINAL(pOriginalThunk->u1.Ordinal));
 				continue;
+			}
 
 			PIMAGE_IMPORT_BY_NAME pImport = (PIMAGE_IMPORT_BY_NAME)
 				ResolveRVA(hInst, pOriginalThunk->u1.AddressOfData);
 
+			XTrace("Import By Name: [Ordinal:%d] [Name:%s]\n", IMAGE_ORDINAL(pOriginalThunk->u1.Ordinal),pImport->Name);
+
 			//Check the name of API given by OriginalFirthThunk
 			if (_stricmp(FuncName, pImport->Name) != 0)
 				continue;
-
-			/*Name matched in OriginalFirthThunk, return FirstThunk
+			
+			/*Name matched in OriginalFirstThunk, return FirstThunk
 			so we can changed it's address*/
 			*pFuncThunkOut = pThunk;
 			return true;
 		}
 	}
+	PostError(RuntimeError(RuntimeError::Severity::UnRecoverable, "PolyHook IATHook:Failed to find import"));
 	return false;
 }
 
@@ -622,7 +667,7 @@ PLH::VEHHook::VEHHook()
 	void* pVEH = AddVectoredExceptionHandler(1, &PLH::VEHHook::VEHHandler);
 	if (pVEH == nullptr)
 	{
-		PostError(IError(IError::Severity::UnRecoverable, "PolyHook VEH: Failed to create top level handler"));
+		PostError(RuntimeError(RuntimeError::Severity::UnRecoverable, "PolyHook VEH: Failed to create top level handler"));
 	}
 }
 
@@ -646,71 +691,68 @@ bool PLH::VEHHook::AreInSamePage(BYTE* Addr1, BYTE* Addr2)
 void PLH::VEHHook::SetupHook(BYTE* Src, BYTE* Dest,VEHMethod Method)
 {
 	HookCtx Ctx(Src, Dest, Method);
-	m_ThisInstance = Ctx;
+	m_ThisCtx = Ctx;
 }
 
-void PLH::VEHHook::Hook()
+bool PLH::VEHHook::Hook()
 {
 	//Lock the TargetMutex for thread safe vector operations
 	std::lock_guard<std::mutex> m_Lock(m_TargetMutex);
 
-	if (m_ThisInstance.m_Type == VEHMethod::INT3_BP)
+	if (m_ThisCtx.m_Type == VEHMethod::INT3_BP)
 	{
 		//Write INT3 BreakPoint
-		MemoryProtect Protector(m_ThisInstance.m_Src, 1, PAGE_EXECUTE_READWRITE);
-		m_ThisInstance.m_OriginalByte = *m_ThisInstance.m_Src;
-		*m_ThisInstance.m_Src = 0xCC;
-		m_HookTargets.push_back(m_ThisInstance);
-	}else if (m_ThisInstance.m_Type == VEHMethod::GUARD_PAGE){
+		MemoryProtect Protector(m_ThisCtx.m_Src, 1, PAGE_EXECUTE_READWRITE);
+		m_ThisCtx.m_OriginalByte = *m_ThisCtx.m_Src;
+		*m_ThisCtx.m_Src = 0xCC;
+		m_HookTargets.push_back(m_ThisCtx);
+	}else if (m_ThisCtx.m_Type == VEHMethod::GUARD_PAGE){
 		//Read current page protection
 		MEMORY_BASIC_INFORMATION mbi;
-		VirtualQuery(m_ThisInstance.m_Src, &mbi, sizeof(mbi));
-
-		printf("Performing checks...\n");
+		VirtualQuery(m_ThisCtx.m_Src, &mbi, sizeof(mbi));
 
 		//can't use Page Guards with NO_ACCESS flag
 		if (mbi.Protect & PAGE_NOACCESS)
 		{
-			PostError(IError(IError::Severity::UnRecoverable, "PolyHook VEH: Cannot hook page with NOACCESS Flag"));
-			printf("Page has no Access Flag\n");
-			return;
+			PostError(RuntimeError(RuntimeError::Severity::UnRecoverable, "PolyHook VEH: Cannot hook page with NOACCESS Flag"));
+			return false;
 		}
 
-		if (AreInSamePage((BYTE*)&PLH::VEHHook::VEHHandler, m_ThisInstance.m_Src))
+		if (AreInSamePage((BYTE*)&PLH::VEHHook::VEHHandler, m_ThisCtx.m_Src))
 		{
-			PostError(IError(IError::Severity::UnRecoverable, "PolyHook VEH: Cannot hook page on same page as the VEH\n"));
-			return;
+			PostError(RuntimeError(RuntimeError::Severity::UnRecoverable, "PolyHook VEH: Cannot hook page on same page as the VEH"));
+			return false;
 		}
 
 		//!!!!COMPILER SPECIFIC HACK HERE!!!!!
-		void(PLH::VEHHook::* pHookFunc)(void) = &PLH::VEHHook::Hook;
-		if (AreInSamePage((BYTE*&)pHookFunc, m_ThisInstance.m_Src))
+		bool(PLH::VEHHook::* pHookFunc)(void) = &PLH::VEHHook::Hook;
+		if (AreInSamePage((BYTE*&)pHookFunc, m_ThisCtx.m_Src))
 		{
-			PostError(IError(IError::Severity::UnRecoverable, "PolyHook VEH: Cannot hook page on same page as the hooking function\n"));
-			return;
+			PostError(RuntimeError(RuntimeError::Severity::UnRecoverable, "PolyHook VEH: Cannot hook page on same page as the hooking function"));
+			return false;
 		}
 		
-		printf("Checks:OK...About to hook\n");
-		m_HookTargets.push_back(m_ThisInstance);
+		m_HookTargets.push_back(m_ThisCtx);
 
 		//Write Page Guard protection
 		DWORD OldProtection;
-		VirtualProtect(m_ThisInstance.m_Src, 1 ,PAGE_EXECUTE_READWRITE | PAGE_GUARD, &OldProtection);
+		VirtualProtect(m_ThisCtx.m_Src, 1 ,PAGE_EXECUTE_READWRITE | PAGE_GUARD, &OldProtection);
 	}
+	return true;
 }
 
 void PLH::VEHHook::UnHook()
 {
 	std::lock_guard<std::mutex> m_Lock(m_TargetMutex);
 	
-	if (m_ThisInstance.m_Type == VEHMethod::INT3_BP)
+	if (m_ThisCtx.m_Type == VEHMethod::INT3_BP)
 	{
-		MemoryProtect Protector(m_ThisInstance.m_Src, 1, PAGE_EXECUTE_READWRITE);
-		*m_ThisInstance.m_Src = m_ThisInstance.m_OriginalByte;
-	}else if (m_ThisInstance.m_Type == VEHMethod::GUARD_PAGE) {
-		BYTE GenerateExceptionRead = *m_ThisInstance.m_Src;
+		MemoryProtect Protector(m_ThisCtx.m_Src, 1, PAGE_EXECUTE_READWRITE);
+		*m_ThisCtx.m_Src = m_ThisCtx.m_OriginalByte;
+	}else if (m_ThisCtx.m_Type == VEHMethod::GUARD_PAGE) {
+		volatile BYTE GenerateExceptionRead = *m_ThisCtx.m_Src;
 	}
-	m_HookTargets.erase(std::remove(m_HookTargets.begin(), m_HookTargets.end(), m_ThisInstance), m_HookTargets.end());
+	m_HookTargets.erase(std::remove(m_HookTargets.begin(), m_HookTargets.end(), m_ThisCtx), m_HookTargets.end());
 }
 
 LONG CALLBACK PLH::VEHHook::VEHHandler(EXCEPTION_POINTERS* ExceptionInfo)
@@ -752,39 +794,13 @@ LONG CALLBACK PLH::VEHHook::VEHHandler(EXCEPTION_POINTERS* ExceptionInfo)
 			if(!AreInSamePage((BYTE*)ExceptionInfo->ContextRecord->XIP,Ctx.m_Src))
 				continue;
 
-			if (ExceptionInfo->ContextRecord->XIP != (DWORD_PTR)Ctx.m_Src)
-				return EXCEPTION_CONTINUE_EXECUTION;
-			else
+			if (ExceptionInfo->ContextRecord->XIP == (DWORD_PTR)Ctx.m_Src)
 				ExceptionInfo->ContextRecord->XIP = (DWORD_PTR)Ctx.m_Dest;
+
 			return EXCEPTION_CONTINUE_EXECUTION;
 		}
 	}
 	return EXCEPTION_CONTINUE_SEARCH;
-}
-
-/*----------------------------------------------*/
-PLH::MemoryProtectDelay::MemoryProtectDelay(void* Address, size_t Size)
-{
-	MEMORY_BASIC_INFORMATION mbi;
-	VirtualQuery(Address, &mbi, Size);
-	m_OriginalProtection = mbi.Protect;
-	m_Address = Address;
-	m_Size = Size;
-}
-
-void PLH::MemoryProtectDelay::SetProtection(DWORD ProtectionFlags)
-{
-	m_DesiredProtection = ProtectionFlags;
-}
-
-void PLH::MemoryProtectDelay::ApplyProtection()
-{
-	VirtualProtect(m_Address, m_Size, m_DesiredProtection, &m_PreviousProtection);
-}
-
-void PLH::MemoryProtectDelay::RestoreOriginal()
-{
-	VirtualProtect(m_Address, m_Size, m_OriginalProtection, &m_PreviousProtection);
 }
 
 /*----------------------------------------------*/

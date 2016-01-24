@@ -7,6 +7,7 @@
 #include <vector>
 #include <mutex>
 #include <algorithm>
+#include <utility>
 #pragma comment(lib,"Dbghelp.lib")
 #pragma comment(lib,"capstone.lib")
 
@@ -93,9 +94,15 @@ namespace PLH {
 	{
 	public:
 		IHook() = default;
+		IHook(IHook&& other) = default; //move
+		IHook& operator=(IHook&& other) = default;//move assignment
+		IHook(const IHook& other) = delete; //copy
+		IHook& operator=(const IHook& other) = delete; //copy assignment
+		virtual ~IHook() = default;
+
 		virtual bool Hook() = 0;
 		virtual void UnHook() = 0;
-		virtual ~IHook() = default;
+	
 		virtual RuntimeError GetLastError() const;
 		virtual void PostError(const RuntimeError& Err);
 	protected:
@@ -106,6 +113,10 @@ namespace PLH {
 	{
 	public:
 		AbstractDetour();
+		//AbstractDetour(AbstractDetour&& other); //move
+		//AbstractDetour& operator=(AbstractDetour&& other);//move assignment
+		AbstractDetour(const AbstractDetour& other) = delete;
+		AbstractDetour& operator=(const AbstractDetour& other) = delete;
 		virtual ~AbstractDetour();
 		template<typename T>
 		void SetupHook(T* Src, T* Dest)
@@ -159,6 +170,10 @@ namespace PLH {
 	{
 	public:
 		X86Detour();
+		//X86Detour(X86Detour&& other); //move
+		//X86Detour& operator=(X86Detour&& other);//move assignment
+		X86Detour(const X86Detour& other) = delete; //copy
+		X86Detour& operator=(const X86Detour& other) = delete; //copy assignment
 		virtual ~X86Detour();
 
 		virtual bool Hook() override;
@@ -178,8 +193,11 @@ namespace PLH {
 	public:
 		//Credits DarthTon, evolution536
 		X64Detour();
+		//X64Detour(X64Detour&& other); //move
+		//X64Detour& operator=(X64Detour&& other);//move assignment
+		X64Detour(const X64Detour& other) = delete; //copy
+		X64Detour& operator=(const X64Detour& other) = delete; //copy assignment
 		virtual ~X64Detour();
-
 		virtual bool Hook() override;
 	protected:
 		virtual x86_reg GetIpReg() override;
@@ -196,6 +214,10 @@ namespace PLH {
 	{
 	public:
 		VFuncSwap() = default;
+		//VFuncSwap(VFuncSwap&& other);
+		//VFuncSwap& operator=(VFuncSwap&& other);
+		VFuncSwap(const VFuncSwap& other) = delete;
+		VFuncSwap& operator=(const VFuncSwap& other) = delete;
 		virtual ~VFuncSwap() = default;
 		virtual bool Hook() override;
 		virtual void UnHook() override;
@@ -217,6 +239,10 @@ namespace PLH {
 	{
 	public:
 		VFuncDetour();
+		VFuncDetour(VFuncDetour&& other); //move
+		VFuncDetour& operator=(VFuncDetour&& other);//move assignment
+		VFuncDetour(const VFuncDetour& other) = delete; //copy
+		VFuncDetour& operator=(const VFuncDetour& other) = delete; //copy assignment
 		virtual ~VFuncDetour();
 		virtual bool Hook() override;
 		virtual void UnHook() override;
@@ -229,7 +255,7 @@ namespace PLH {
 		virtual RuntimeError GetLastError() const override;
 		virtual void PostError(const RuntimeError& Err) override;
 	private:
-		Detour* m_Detour;
+		std::unique_ptr<Detour> m_Detour;
 	};
 
 	//Credit to Dogmatt for IsValidPtr
@@ -244,6 +270,10 @@ namespace PLH {
 	{
 	public:
 		VTableSwap();
+		//VTableSwap(VTableSwap&& other); //move
+		//VTableSwap& operator=(VTableSwap&& other);//move assignment
+		VTableSwap(const VTableSwap& other) = delete; //copy
+		VTableSwap& operator=(const VTableSwap& other) = delete; //copy assignment
 		virtual ~VTableSwap();
 		virtual bool Hook() override;
 		template<typename T>
@@ -281,6 +311,10 @@ namespace PLH {
 	{
 	public:
 		IATHook() = default;
+		//IATHook(IATHook&& other); //move
+		//IATHook& operator=(IATHook&& other);//move assignment
+		IATHook(const IATHook& other) = delete; //copy
+		IATHook& operator=(const IATHook& other) = delete; //copy assignment
 		virtual ~IATHook() = default;
 		virtual bool Hook() override;
 		virtual void UnHook() override;
@@ -343,6 +377,10 @@ namespace PLH {
 			ERROR_TYPE
 		};
 		VEHHook();
+		//VEHHook(VEHHook&& other); //move
+		//VEHHook& operator=(VEHHook&& other);//move assignment
+		VEHHook(const VEHHook& other) = delete; //copy
+		VEHHook& operator=(const VEHHook& other) = delete; //copy assignment
 		virtual ~VEHHook() = default;
 		virtual bool Hook() override;
 		virtual void UnHook() override;

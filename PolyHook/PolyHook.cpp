@@ -464,12 +464,12 @@ void PLH::VFuncSwap::SetupHook(BYTE** Vtable, const int Index, BYTE* Dest)
 /*----------------------------------------------*/
 PLH::VFuncDetour::VFuncDetour() :IHook()
 {
-	m_Detour = new Detour();
+	m_Detour =std::make_unique<Detour>();
 }
 
 PLH::VFuncDetour::~VFuncDetour()
 {
-	delete m_Detour;
+	
 }
 
 bool PLH::VFuncDetour::Hook()
@@ -485,6 +485,18 @@ void PLH::VFuncDetour::UnHook()
 void PLH::VFuncDetour::SetupHook(BYTE** Vtable, const int Index, BYTE* Dest)
 {
 	m_Detour->SetupHook(Vtable[Index], Dest);
+}
+
+PLH::VFuncDetour::VFuncDetour(VFuncDetour&& other) : m_Detour(std::move(other.m_Detour))
+{
+	other.m_Detour = 0;
+}
+
+PLH::VFuncDetour& PLH::VFuncDetour::operator=(VFuncDetour&& other)
+{
+	m_Detour = std::move(other.m_Detour);
+	other.m_Detour = 0;
+	return *this;
 }
 
 PLH::RuntimeError PLH::VFuncDetour::GetLastError() const

@@ -3,7 +3,7 @@ void XTrace(char* fmt, ...)
 {
 	va_list args;
 	va_start(args, fmt);
-#ifdef _DEBUG
+#if defined(_DEBUG) || defined(PLH_SHOW_DEBUG_MESSAGES)
 	vfprintf_s(stdout, fmt, args);
 #endif
 	va_end(args);

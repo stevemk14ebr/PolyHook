@@ -2,6 +2,7 @@
 //
 #include <tchar.h>
 #include "PolyHook.h"
+#define PLH_SHOW_DEBUG_MESSAGES 1 //To print messages even in release
 
 typedef int(__stdcall* tMessageBoxA)(HWND hWnd,LPCTSTR lpText,LPCTSTR lpCaption,UINT uType);
 tMessageBoxA oMessageBoxA;
@@ -75,13 +76,13 @@ int _tmain(int argc, _TCHAR* argv[])
 	//MessageBoxA(NULL, "Message", "Sample", MB_OK);
 
 	///x86/x64 IAT Hook Example
-	/*PLH::IATHook* Hook = new PLH::IATHook();
+	PLH::IATHook* Hook = new PLH::IATHook();
 	Hook->SetupHook("kernel32.dll", "GetCurrentThreadId", (BYTE*)&hkGetCurrentThreadId);
 	Hook->Hook();
 	oGetCurrentThreadID = Hook->GetOriginal<tGetCurrentThreadId>();
 	printf("Thread ID:%d \n", GetCurrentThreadId());
 	Hook->UnHook();
-	printf("Real Thread ID:%d\n", GetCurrentThreadId());*/
+	printf("Real Thread ID:%d\n", GetCurrentThreadId());
 
 	///x86/x64 VFuncDetour Example
 	//VirtualTest* ClassToHook = new VirtualTest();
@@ -117,14 +118,14 @@ int _tmain(int argc, _TCHAR* argv[])
 	be worried about.
 	*/
 	///x86/x64 VEH Example (GUARD_PAGE and INT3_BP)
-	VEHHook = new PLH::VEHHook();
+	/*VEHHook = new PLH::VEHHook();
 	VEHHook->SetupHook((BYTE*)&VEHTest, (BYTE*)&hkVEHTest, PLH::VEHHook::VEHMethod::INT3_BP);
 	VEHHook->Hook();
 	oVEHTest = VEHHook->GetOriginal<tVEH>();
 	VEHTest(3);
 	VEHHook->UnHook();
 	VEHTest(1);
-	VEHHook->PrintError(VEHHook->GetLastError());
+	VEHHook->PrintError(VEHHook->GetLastError());*/
 
 	Sleep(100000);
 	return 0;

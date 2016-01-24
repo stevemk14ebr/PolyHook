@@ -75,13 +75,13 @@ int _tmain(int argc, _TCHAR* argv[])
 	//MessageBoxA(NULL, "Message", "Sample", MB_OK);
 
 	///x86/x64 IAT Hook Example
-	PLH::IATHook* Hook = new PLH::IATHook();
+	/*PLH::IATHook* Hook = new PLH::IATHook();
 	Hook->SetupHook("kernel32.dll", "GetCurrentThreadId", (BYTE*)&hkGetCurrentThreadId);
 	Hook->Hook();
 	oGetCurrentThreadID = Hook->GetOriginal<tGetCurrentThreadId>();
 	printf("Thread ID:%d \n", GetCurrentThreadId());
 	Hook->UnHook();
-	printf("Real Thread ID:%d\n", GetCurrentThreadId());
+	printf("Real Thread ID:%d\n", GetCurrentThreadId());*/
 
 	///x86/x64 VFuncDetour Example
 	//VirtualTest* ClassToHook = new VirtualTest();
@@ -117,15 +117,14 @@ int _tmain(int argc, _TCHAR* argv[])
 	be worried about.
 	*/
 	///x86/x64 VEH Example (GUARD_PAGE and INT3_BP)
-	/*VEHHook = new PLH::VEHHook();
-	VEHHook->SetupHook((BYTE*)&VEHTest, (BYTE*)&hkVEHTest, PLH::VEHHook::VEHMethod::GUARD_PAGE);
+	VEHHook = new PLH::VEHHook();
+	VEHHook->SetupHook((BYTE*)&VEHTest, (BYTE*)&hkVEHTest, PLH::VEHHook::VEHMethod::INT3_BP);
 	VEHHook->Hook();
 	oVEHTest = VEHHook->GetOriginal<tVEH>();
 	VEHTest(3);
 	VEHHook->UnHook();
 	VEHTest(1);
-	printf("%s %s\n", (VEHHook->GetLastError().GetSeverity() == PLH::RuntimeError::Severity::NoError) ? "No Error" : "Error",
-		VEHHook->GetLastError().GetString().c_str());*/
+	VEHHook->PrintError(VEHHook->GetLastError());
 
 	Sleep(100000);
 	return 0;

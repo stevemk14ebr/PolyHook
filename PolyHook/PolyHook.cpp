@@ -38,6 +38,12 @@ void PLH::IHook::PostError(const RuntimeError& Err)
 		"%s\n",Err.GetSeverity(), Err.GetString().c_str());
 }
 
+void PLH::IHook::PrintError(const RuntimeError& Err) const 
+{
+	XTrace("%s %s\n", (Err.GetSeverity() == PLH::RuntimeError::Severity::NoError) ? "No Error" : "Error",
+		Err.GetString().c_str()); 
+}
+
 PLH::RuntimeError PLH::IHook::GetLastError() const
 {
 	return m_LastError;

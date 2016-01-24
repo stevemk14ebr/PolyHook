@@ -2,6 +2,7 @@
 //
 #include <tchar.h>
 #include "PolyHook.h"
+#define PLH_SHOW_DEBUG_MESSAGES 1 //To print messages even in release
 
 typedef int(__stdcall* tMessageBoxA)(HWND hWnd,LPCTSTR lpText,LPCTSTR lpCaption,UINT uType);
 tMessageBoxA oMessageBoxA;
@@ -117,15 +118,24 @@ int _tmain(int argc, _TCHAR* argv[])
 	be worried about.
 	*/
 	///x86/x64 VEH Example (GUARD_PAGE and INT3_BP)
+<<<<<<< HEAD
 	VEHHook = new PLH::VEHHook();
 	VEHHook->SetupHook((BYTE*)&VEHTest, (BYTE*)&hkVEHTest, PLH::VEHHook::VEHMethod::HARDWARE_BP);
+=======
+	/*VEHHook = new PLH::VEHHook();
+	VEHHook->SetupHook((BYTE*)&VEHTest, (BYTE*)&hkVEHTest, PLH::VEHHook::VEHMethod::INT3_BP);
+>>>>>>> refs/remotes/origin/master
 	VEHHook->Hook();
 	oVEHTest = VEHHook->GetOriginal<tVEH>();
 	VEHTest(3);
 	VEHHook->UnHook();
 	VEHTest(1);
+<<<<<<< HEAD
 	printf("%s %s\n", (VEHHook->GetLastError().GetSeverity() == PLH::RuntimeError::Severity::NoError) ? "No Error" : "Error",
 		VEHHook->GetLastError().GetString().c_str());
+=======
+	VEHHook->PrintError(VEHHook->GetLastError());*/
+>>>>>>> refs/remotes/origin/master
 
 	Sleep(100000);
 	return 0;

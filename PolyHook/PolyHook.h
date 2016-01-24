@@ -104,8 +104,9 @@ namespace PLH {
 		virtual void UnHook() = 0;
 	
 		virtual RuntimeError GetLastError() const;
-		virtual void PostError(const RuntimeError& Err);
+		virtual void PrintError(const RuntimeError& Err) const;
 	protected:
+		virtual void PostError(const RuntimeError& Err);
 		RuntimeError m_LastError;
 	};
 
@@ -169,6 +170,7 @@ namespace PLH {
 	class X86Detour :public AbstractDetour
 	{
 	public:
+		friend class VFuncDetour;
 		X86Detour();
 		//X86Detour(X86Detour&& other); //move
 		//X86Detour& operator=(X86Detour&& other);//move assignment
@@ -191,6 +193,7 @@ namespace PLH {
 	class X64Detour :public AbstractDetour
 	{
 	public:
+		friend class VFuncDetour;
 		//Credits DarthTon, evolution536
 		X64Detour();
 		//X64Detour(X64Detour&& other); //move
@@ -253,6 +256,7 @@ namespace PLH {
 			return m_Detour->GetOriginal<T>();
 		}
 		virtual RuntimeError GetLastError() const override;
+	protected:
 		virtual void PostError(const RuntimeError& Err) override;
 	private:
 		std::unique_ptr<Detour> m_Detour;

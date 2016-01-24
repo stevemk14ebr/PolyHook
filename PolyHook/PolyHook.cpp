@@ -3,7 +3,7 @@ void XTrace(char* fmt, ...)
 {
 	va_list args;
 	va_start(args, fmt);
-#ifdef _DEBUG
+#if defined(_DEBUG) || defined(PLH_SHOW_DEBUG_MESSAGES)
 	vfprintf_s(stdout, fmt, args);
 #endif
 	va_end(args);
@@ -36,6 +36,12 @@ void PLH::IHook::PostError(const RuntimeError& Err)
 	m_LastError = Err;
 	XTrace("Posted Error [SEVERITY:%d]:\n"
 		"%s\n",Err.GetSeverity(), Err.GetString().c_str());
+}
+
+void PLH::IHook::PrintError(const RuntimeError& Err) const 
+{
+	XTrace("%s %s\n", (Err.GetSeverity() == PLH::RuntimeError::Severity::NoError) ? "No Error" : "Error",
+		Err.GetString().c_str()); 
 }
 
 PLH::RuntimeError PLH::IHook::GetLastError() const

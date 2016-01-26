@@ -40,7 +40,25 @@ void PLH::IHook::PostError(const RuntimeError& Err)
 
 void PLH::IHook::PrintError(const RuntimeError& Err) const 
 {
-	XTrace("%s %s\n", (Err.GetSeverity() == PLH::RuntimeError::Severity::NoError) ? "No Error" : "Error",
+	std::string Severity = "";
+	switch (Err.GetSeverity())
+	{
+	case PLH::RuntimeError::Severity::Warning:
+		Severity = "Warning";
+		break;
+	case PLH::RuntimeError::Severity::Critical:
+		Severity = "Critical";
+		break;
+	case PLH::RuntimeError::Severity::UnRecoverable:
+		Severity = "UnRecoverable";
+		break;
+	case PLH::RuntimeError::Severity::NoError:
+		Severity = "No Error";
+		break;
+	default:
+		Severity = "Unknown";
+	}
+	XTrace("SEVERITY:[%s] %s\n", Severity.c_str(),
 		Err.GetString().c_str()); 
 }
 

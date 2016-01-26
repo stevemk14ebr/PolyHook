@@ -16,7 +16,7 @@ tGetCurrentThreadId oGetCurrentThreadID;
 typedef int(__stdcall* tVEH)(int intparam);
 tVEH oVEHTest;
 
-PLH::VEHHook* VEHHook;
+std::shared_ptr<PLH::VEHHook> VEHHook_Ex;
 
 DWORD __stdcall hkGetCurrentThreadId()
 {
@@ -45,7 +45,7 @@ __declspec(noinline) int __stdcall VEHTest(int param)
 __declspec(noinline) int __stdcall hkVEHTest(int param)
 {
 	printf("hkVEH %d\n",param);
-	auto ProtectionObject = VEHHook->GetProtectionObject();
+	auto ProtectionObject = VEHHook_Ex->GetProtectionObject();
 
 	return oVEHTest(param);
 }
@@ -66,51 +66,58 @@ public:
 
 int _tmain(int argc, _TCHAR* argv[])
 {
+	std::vector<std::shared_ptr<PLH::IHook>> Hooks;
+
 	///X86/x64 Detour Example
-	//PLH::Detour* Hook = new PLH::Detour();
-	//Hook->SetupHook((BYTE*)&MessageBoxA,(BYTE*) &hkMessageBoxA); //can cast to byte* to
-	//Hook->Hook();
-	//oMessageBoxA = Hook->GetOriginal<tMessageBoxA>();
-	//MessageBoxA(NULL, "Message", "Sample", MB_OK);
-	//Hook->UnHook();
-	//MessageBoxA(NULL, "Message", "Sample", MB_OK);
+	std::shared_ptr<PLH::Detour> Detour_Ex(new PLH::Detour);
+	Detour_Ex->SetupHook((BYTE*)&MessageBoxA,(BYTE*) &hkMessageBoxA); //can cast to byte* to
+	Detour_Ex->Hook();
+	oMessageBoxA = Detour_Ex->GetOriginal<tMessageBoxA>();
+	MessageBoxA(NULL, "Message", "Sample", MB_OK);
+	Detour_Ex->UnHook();
+	MessageBoxA(NULL, "Message", "Sample", MB_OK);
+	Hooks.push_back(Detour_Ex);
 
 	///x86/x64 IAT Hook Example
-	PLH::IATHook* Hook = new PLH::IATHook();
-	Hook->SetupHook("kernel32.dll", "GetCurrentThreadId", (BYTE*)&hkGetCurrentThreadId);
-	Hook->Hook();
-	oGetCurrentThreadID = Hook->GetOriginal<tGetCurrentThreadId>();
+	std::shared_ptr<PLH::IATHook> IATHook_Ex(new PLH::IATHook);
+	IATHook_Ex->SetupHook("kernel32.dll", "GetCurrentThreadId", (BYTE*)&hkGetCurrentThreadId);
+	IATHook_Ex->Hook();
+	oGetCurrentThreadID = IATHook_Ex->GetOriginal<tGetCurrentThreadId>();
 	printf("Thread ID:%d \n", GetCurrentThreadId());
-	Hook->UnHook();
+	IATHook_Ex->UnHook();
 	printf("Real Thread ID:%d\n", GetCurrentThreadId());
+	Hooks.push_back(IATHook_Ex);
 
+	std::shared_ptr<VirtualTest> ClassToHook(new VirtualTest);
 	///x86/x64 VFuncDetour Example
-	/*VirtualTest* ClassToHook = new VirtualTest();
-	PLH::VFuncDetour* VirtHook = new PLH::VFuncDetour();
-	VirtHook->SetupHook(*(BYTE***)ClassToHook, 0, (BYTE*)&hkVirtNoParams);
-	VirtHook->Hook();
-	oVirtNoParams = VirtHook->GetOriginal<tVirtNoParams>();
+	std::shared_ptr<PLH::VFuncDetour> VFuncDetour_Ex(new PLH::VFuncDetour);
+	VFuncDetour_Ex->SetupHook(*(BYTE***)ClassToHook.get(), 0, (BYTE*)&hkVirtNoParams);
+	VFuncDetour_Ex->Hook();
+	oVirtNoParams = VFuncDetour_Ex->GetOriginal<tVirtNoParams>();
 	ClassToHook->NoParamVirt();
-	VirtHook->UnHook();
-	ClassToHook->NoParamVirt();*/
+	VFuncDetour_Ex->UnHook();
+	ClassToHook->NoParamVirt();
+	Hooks.push_back(VFuncDetour_Ex);
 
 	///x86/x64 VFuncSwap Example
-	/*PLH::VFuncSwap* VirtHook = new PLH::VFuncSwap();
-	VirtHook->SetupHook(*(BYTE***)ClassToHook, 0, (BYTE*)&hkVirtNoParams);
-	VirtHook->Hook();
-	oVirtNoParams = VirtHook->GetOriginal<tVirtNoParams>();
+	std::shared_ptr<PLH::VFuncSwap> VFuncSwap_Ex(new PLH::VFuncSwap);
+	VFuncSwap_Ex->SetupHook(*(BYTE***)ClassToHook.get(), 0, (BYTE*)&hkVirtNoParams);
+	VFuncSwap_Ex->Hook();
+	oVirtNoParams = VFuncSwap_Ex->GetOriginal<tVirtNoParams>();
 	ClassToHook->NoParamVirt();
-	VirtHook->UnHook();
-	ClassToHook->NoParamVirt();*/
+	VFuncSwap_Ex->UnHook();
+	ClassToHook->NoParamVirt();
+	Hooks.push_back(VFuncSwap_Ex);
 
 	///x86/x64 VTableSwap Example
-	//PLH::VTableSwap* VTableHook = new PLH::VTableSwap();
-	//VTableHook->SetupHook((BYTE*)ClassToHook, 0, (BYTE*)&hkVirtNoParams);
-	//VTableHook->Hook();
-	//oVirtNoParams = VTableHook->GetOriginal<tVirtNoParams>();
-	//ClassToHook->NoParamVirt();
-	//VTableHook->UnHook();
-	//ClassToHook->NoParamVirt();
+	std::shared_ptr<PLH::VTableSwap> VTableSwap_Ex(new PLH::VTableSwap);
+	VTableSwap_Ex->SetupHook((BYTE*)ClassToHook.get(), 0, (BYTE*)&hkVirtNoParams);
+	VTableSwap_Ex->Hook();
+	oVirtNoParams = VTableSwap_Ex->GetOriginal<tVirtNoParams>();
+	ClassToHook->NoParamVirt();
+	VTableSwap_Ex->UnHook();
+	ClassToHook->NoParamVirt();
+	Hooks.push_back(VTableSwap_Ex);
 
 	/*!!!!IMPORTANT!!!!!: Since this demo is small it's possible for internal methods to be on the same memory page
 	as the VEHTest function. If that happens the GUARD_PAGE type method will fail with an unexpected exception. 
@@ -118,15 +125,18 @@ int _tmain(int argc, _TCHAR* argv[])
 	be worried about. You CANNOT run this demo under a debugger when using VEH type
 	*/
 	///x86/x64 VEH Example (GUARD_PAGE and INT3_BP)
-	/*VEHHook = new PLH::VEHHook();
-	VEHHook->SetupHook((BYTE*)&VEHTest, (BYTE*)&hkVEHTest, PLH::VEHHook::VEHMethod::INT3_BP);
-	VEHHook->Hook();
-	oVEHTest = VEHHook->GetOriginal<tVEH>();
+	VEHHook_Ex = std::make_shared<PLH::VEHHook>();
+	VEHHook_Ex->SetupHook((BYTE*)&VEHTest, (BYTE*)&hkVEHTest, PLH::VEHHook::VEHMethod::INT3_BP);
+	VEHHook_Ex->Hook();
+	oVEHTest = VEHHook_Ex->GetOriginal<tVEH>();
 	VEHTest(3);
-	VEHHook->UnHook();
+	VEHHook_Ex->UnHook();
 	VEHTest(1);
-	VEHHook->PrintError(VEHHook->GetLastError());*/
-
+	Hooks.push_back(VEHHook_Ex);
+	for (auto&& HookInstance : Hooks)
+	{
+		HookInstance->PrintError(HookInstance->GetLastError());
+	}
 	Sleep(100000);
 	return 0;
 }

@@ -114,8 +114,6 @@ namespace PLH {
 	{
 	public:
 		AbstractDetour();
-		//AbstractDetour(AbstractDetour&& other); //move
-		//AbstractDetour& operator=(AbstractDetour&& other);//move assignment
 		AbstractDetour(const AbstractDetour& other) = delete;
 		AbstractDetour& operator=(const AbstractDetour& other) = delete;
 		virtual ~AbstractDetour();
@@ -172,8 +170,8 @@ namespace PLH {
 	public:
 		friend class VFuncDetour;
 		X86Detour();
-		//X86Detour(X86Detour&& other); //move
-		//X86Detour& operator=(X86Detour&& other);//move assignment
+		X86Detour(X86Detour&& other) = default; //move
+		X86Detour& operator=(X86Detour&& other) = default;//move assignment
 		X86Detour(const X86Detour& other) = delete; //copy
 		X86Detour& operator=(const X86Detour& other) = delete; //copy assignment
 		virtual ~X86Detour();
@@ -196,8 +194,8 @@ namespace PLH {
 		friend class VFuncDetour;
 		//Credits DarthTon, evolution536
 		X64Detour();
-		//X64Detour(X64Detour&& other); //move
-		//X64Detour& operator=(X64Detour&& other);//move assignment
+		X64Detour(X64Detour&& other) = default; //move
+		X64Detour& operator=(X64Detour&& other) = default;//move assignment
 		X64Detour(const X64Detour& other) = delete; //copy
 		X64Detour& operator=(const X64Detour& other) = delete; //copy assignment
 		virtual ~X64Detour();
@@ -217,8 +215,8 @@ namespace PLH {
 	{
 	public:
 		VFuncSwap() = default;
-		//VFuncSwap(VFuncSwap&& other);
-		//VFuncSwap& operator=(VFuncSwap&& other);
+		VFuncSwap(VFuncSwap&& other) = default;
+		VFuncSwap& operator=(VFuncSwap&& other) = default;
 		VFuncSwap(const VFuncSwap& other) = delete;
 		VFuncSwap& operator=(const VFuncSwap& other) = delete;
 		virtual ~VFuncSwap() = default;
@@ -242,8 +240,8 @@ namespace PLH {
 	{
 	public:
 		VFuncDetour();
-		VFuncDetour(VFuncDetour&& other); //move
-		VFuncDetour& operator=(VFuncDetour&& other);//move assignment
+		VFuncDetour(VFuncDetour&& other) = default; //move
+		VFuncDetour& operator=(VFuncDetour&& other) = default;//move assignment
 		VFuncDetour(const VFuncDetour& other) = delete; //copy
 		VFuncDetour& operator=(const VFuncDetour& other) = delete; //copy assignment
 		virtual ~VFuncDetour();
@@ -274,8 +272,8 @@ namespace PLH {
 	{
 	public:
 		VTableSwap();
-		//VTableSwap(VTableSwap&& other); //move
-		//VTableSwap& operator=(VTableSwap&& other);//move assignment
+		VTableSwap(VTableSwap&& other) = default; //move
+		VTableSwap& operator=(VTableSwap&& other) = default;//move assignment
 		VTableSwap(const VTableSwap& other) = delete; //copy
 		VTableSwap& operator=(const VTableSwap& other) = delete; //copy assignment
 		virtual ~VTableSwap();
@@ -315,8 +313,8 @@ namespace PLH {
 	{
 	public:
 		IATHook() = default;
-		//IATHook(IATHook&& other); //move
-		//IATHook& operator=(IATHook&& other);//move assignment
+		IATHook(IATHook&& other) = default; //move
+		IATHook& operator=(IATHook&& other) = default;//move assignment
 		IATHook(const IATHook& other) = delete; //copy
 		IATHook& operator=(const IATHook& other) = delete; //copy assignment
 		virtual ~IATHook() = default;
@@ -381,8 +379,8 @@ namespace PLH {
 			ERROR_TYPE
 		};
 		VEHHook();
-		//VEHHook(VEHHook&& other); //move
-		//VEHHook& operator=(VEHHook&& other);//move assignment
+		VEHHook(VEHHook&& other) = default; //move
+		VEHHook& operator=(VEHHook&& other) = default;//move assignment
 		VEHHook(const VEHHook& other) = delete; //copy
 		VEHHook& operator=(const VEHHook& other) = delete; //copy assignment
 		virtual ~VEHHook() = default;

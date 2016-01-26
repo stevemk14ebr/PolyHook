@@ -493,18 +493,6 @@ void PLH::VFuncDetour::SetupHook(BYTE** Vtable, const int Index, BYTE* Dest)
 	m_Detour->SetupHook(Vtable[Index], Dest);
 }
 
-PLH::VFuncDetour::VFuncDetour(VFuncDetour&& other) : m_Detour(std::move(other.m_Detour))
-{
-	other.m_Detour = 0;
-}
-
-PLH::VFuncDetour& PLH::VFuncDetour::operator=(VFuncDetour&& other)
-{
-	m_Detour = std::move(other.m_Detour);
-	other.m_Detour = 0;
-	return *this;
-}
-
 PLH::RuntimeError PLH::VFuncDetour::GetLastError() const
 {
 	return m_Detour->GetLastError();

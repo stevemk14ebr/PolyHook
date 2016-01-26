@@ -76,23 +76,23 @@ int _tmain(int argc, _TCHAR* argv[])
 	//MessageBoxA(NULL, "Message", "Sample", MB_OK);
 
 	///x86/x64 IAT Hook Example
-	//PLH::IATHook* Hook = new PLH::IATHook();
-	//Hook->SetupHook("kernel32.dll", "GetCurrentThreadId", (BYTE*)&hkGetCurrentThreadId);
-	//Hook->Hook();
-	//oGetCurrentThreadID = Hook->GetOriginal<tGetCurrentThreadId>();
-	//printf("Thread ID:%d \n", GetCurrentThreadId());
-	//Hook->UnHook();
-	//printf("Real Thread ID:%d\n", GetCurrentThreadId());
+	PLH::IATHook* Hook = new PLH::IATHook();
+	Hook->SetupHook("kernel32.dll", "GetCurrentThreadId", (BYTE*)&hkGetCurrentThreadId);
+	Hook->Hook();
+	oGetCurrentThreadID = Hook->GetOriginal<tGetCurrentThreadId>();
+	printf("Thread ID:%d \n", GetCurrentThreadId());
+	Hook->UnHook();
+	printf("Real Thread ID:%d\n", GetCurrentThreadId());
 
 	///x86/x64 VFuncDetour Example
-	//VirtualTest* ClassToHook = new VirtualTest();
-	//PLH::VFuncDetour* VirtHook = new PLH::VFuncDetour();
-	//VirtHook->SetupHook(*(BYTE***)ClassToHook, 0, (BYTE*)&hkVirtNoParams);
-	//VirtHook->Hook();
-	//oVirtNoParams = VirtHook->GetOriginal<tVirtNoParams>();
-	//ClassToHook->NoParamVirt();
-	//VirtHook->UnHook();
-	//ClassToHook->NoParamVirt();
+	/*VirtualTest* ClassToHook = new VirtualTest();
+	PLH::VFuncDetour* VirtHook = new PLH::VFuncDetour();
+	VirtHook->SetupHook(*(BYTE***)ClassToHook, 0, (BYTE*)&hkVirtNoParams);
+	VirtHook->Hook();
+	oVirtNoParams = VirtHook->GetOriginal<tVirtNoParams>();
+	ClassToHook->NoParamVirt();
+	VirtHook->UnHook();
+	ClassToHook->NoParamVirt();*/
 
 	///x86/x64 VFuncSwap Example
 	/*PLH::VFuncSwap* VirtHook = new PLH::VFuncSwap();
@@ -114,8 +114,8 @@ int _tmain(int argc, _TCHAR* argv[])
 
 	/*!!!!IMPORTANT!!!!!: Since this demo is small it's possible for internal methods to be on the same memory page
 	as the VEHTest function. If that happens the GUARD_PAGE type method will fail with an unexpected exception. 
-	If this method is used in larger applications this risk is increadibly small, to the point where it should not
-	be worried about.
+	If this method is used in larger applications this risk is incredibly small, to the point where it should not
+	be worried about. You CANNOT run this demo under a debugger when using VEH type
 	*/
 	///x86/x64 VEH Example (GUARD_PAGE and INT3_BP)
 	/*VEHHook = new PLH::VEHHook();

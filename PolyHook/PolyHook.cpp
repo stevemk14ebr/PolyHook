@@ -283,9 +283,9 @@ bool PLH::X86Detour::Hook()
 	}
 
 	m_Trampoline = new BYTE[m_hkLength + 30];   //Allocate Space for original plus extra to jump back and for jmp table
-	VirtualProtect(m_Trampoline, m_hkLength + 5, PAGE_EXECUTE_READWRITE, &OldProtection); //Allow Execution
 	m_NeedFree = true;
-
+	VirtualProtect(m_Trampoline, m_hkLength + 5, PAGE_EXECUTE_READWRITE, &OldProtection); //Allow Execution
+	
 	memcpy(m_OriginalCode, m_hkSrc, m_hkLength);
 	memcpy(m_Trampoline, m_hkSrc, m_hkLength); //Copy original into allocated space
 	RelocateASM(m_Trampoline, m_hkLength, (DWORD)m_hkSrc, (DWORD)m_Trampoline);

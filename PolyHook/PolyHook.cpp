@@ -40,7 +40,25 @@ void PLH::IHook::PostError(const RuntimeError& Err)
 
 void PLH::IHook::PrintError(const RuntimeError& Err) const 
 {
-	XTrace("%s %s\n", (Err.GetSeverity() == PLH::RuntimeError::Severity::NoError) ? "No Error" : "Error",
+	std::string Severity = "";
+	switch (Err.GetSeverity())
+	{
+	case PLH::RuntimeError::Severity::Warning:
+		Severity = "Warning";
+		break;
+	case PLH::RuntimeError::Severity::Critical:
+		Severity = "Critical";
+		break;
+	case PLH::RuntimeError::Severity::UnRecoverable:
+		Severity = "UnRecoverable";
+		break;
+	case PLH::RuntimeError::Severity::NoError:
+		Severity = "No Error";
+		break;
+	default:
+		Severity = "Unknown";
+	}
+	XTrace("SEVERITY:[%s] %s\n", Severity.c_str(),
 		Err.GetString().c_str()); 
 }
 
@@ -265,9 +283,9 @@ bool PLH::X86Detour::Hook()
 	}
 
 	m_Trampoline = new BYTE[m_hkLength + 30];   //Allocate Space for original plus extra to jump back and for jmp table
-	VirtualProtect(m_Trampoline, m_hkLength + 5, PAGE_EXECUTE_READWRITE, &OldProtection); //Allow Execution
 	m_NeedFree = true;
-
+	VirtualProtect(m_Trampoline, m_hkLength + 5, PAGE_EXECUTE_READWRITE, &OldProtection); //Allow Execution
+	
 	memcpy(m_OriginalCode, m_hkSrc, m_hkLength);
 	memcpy(m_Trampoline, m_hkSrc, m_hkLength); //Copy original into allocated space
 	RelocateASM(m_Trampoline, m_hkLength, (DWORD)m_hkSrc, (DWORD)m_Trampoline);
@@ -470,12 +488,12 @@ void PLH::VFuncSwap::SetupHook(BYTE** Vtable, const int Index, BYTE* Dest)
 /*----------------------------------------------*/
 PLH::VFuncDetour::VFuncDetour() :IHook()
 {
-	m_Detour = new Detour();
+	m_Detour =std::make_unique<Detour>();
 }
 
 PLH::VFuncDetour::~VFuncDetour()
 {
-	delete m_Detour;
+	
 }
 
 bool PLH::VFuncDetour::Hook()
@@ -709,8 +727,62 @@ bool PLH::VEHHook::Hook()
 	{
 		//Write INT3 BreakPoint
 		MemoryProtect Protector(m_ThisCtx.m_Src, 1, PAGE_EXECUTE_READWRITE);
-		m_ThisCtx.m_OriginalByte = *m_ThisCtx.m_Src;
+		m_ThisCtx.m_StorageByte = *m_ThisCtx.m_Src;
 		*m_ThisCtx.m_Src = 0xCC;
+		m_HookTargets.push_back(m_ThisCtx);
+	}else if (m_ThisCtx.m_Type == VEHMethod::HARDWARE_BP) {
+		CONTEXT Ctx;
+		Ctx.ContextFlags = CONTEXT_DEBUG_REGISTERS;
+	
+		if (!GetThreadContext(GetCurrentThread(), &Ctx))
+		{
+			PostError(PLH::RuntimeError(RuntimeError::Severity::Critical, "Failed to get context"));
+			return false;
+		}
+
+		uint8_t RegIndex = 0;
+		bool FoundReg = false;
+		for (; RegIndex < 4; RegIndex++)
+		{
+			if ((Ctx.Dr7 & (1 << (RegIndex * 2))) == 0)
+			{
+				FoundReg = true;
+				break;
+			}
+		}
+		if (!FoundReg)
+		{
+			PostError(PLH::RuntimeError(RuntimeError::Severity::Critical, "Failed to find free Reg"));
+			return false;
+		}
+
+		switch (RegIndex)
+		{
+		case 0: 
+			Ctx.Dr0 = (DWORD_PTR)m_ThisCtx.m_Src;
+			break;
+		case 1: 
+			Ctx.Dr1 = (DWORD_PTR)m_ThisCtx.m_Src; 
+			break;
+		case 2: 
+			Ctx.Dr2 = (DWORD_PTR)m_ThisCtx.m_Src; 
+			break;
+		case 3: 
+			Ctx.Dr3 = (DWORD_PTR)m_ThisCtx.m_Src; 
+			break;
+		default: 
+			PostError(PLH::RuntimeError(RuntimeError::Severity::Critical, "PolyHook VEH: Invalid Debug Register Index"));
+			return false;
+		}
+		//Turn a local register on
+		Ctx.Dr7 |= 1 << (2*RegIndex);
+		m_ThisCtx.m_StorageByte = RegIndex;
+		//Still need to call suspend thread *TODO*
+		if (!SetThreadContext(GetCurrentThread(), &Ctx))
+		{
+			PostError(PLH::RuntimeError(RuntimeError::Severity::Critical, "PolyHook VEH: Failed to set thread context"));
+			return false;
+		}
 		m_HookTargets.push_back(m_ThisCtx);
 	}else if (m_ThisCtx.m_Type == VEHMethod::GUARD_PAGE){
 		//Read current page protection
@@ -754,7 +826,22 @@ void PLH::VEHHook::UnHook()
 	if (m_ThisCtx.m_Type == VEHMethod::INT3_BP)
 	{
 		MemoryProtect Protector(m_ThisCtx.m_Src, 1, PAGE_EXECUTE_READWRITE);
-		*m_ThisCtx.m_Src = m_ThisCtx.m_OriginalByte;
+		*m_ThisCtx.m_Src = m_ThisCtx.m_StorageByte;
+	}else if (m_ThisCtx.m_Type == VEHMethod::HARDWARE_BP) {
+		CONTEXT Ctx;
+		Ctx.ContextFlags = CONTEXT_DEBUG_REGISTERS;
+		if (!GetThreadContext(GetCurrentThread(), &Ctx))
+		{
+			PostError(PLH::RuntimeError(RuntimeError::Severity::Critical, "Failed to get context"));
+			return;
+		}
+		Ctx.Dr7 &= ~(1 << (2 * m_ThisCtx.m_StorageByte));
+		//Still need to call suspend thread
+		if (!SetThreadContext(GetCurrentThread(), &Ctx))
+		{
+			PostError(PLH::RuntimeError(RuntimeError::Severity::Critical, "Failed to set context"));
+			return;
+		}
 	}else if (m_ThisCtx.m_Type == VEHMethod::GUARD_PAGE) {
 		volatile BYTE GenerateExceptionRead = *m_ThisCtx.m_Src;
 	}
@@ -784,10 +871,30 @@ LONG CALLBACK PLH::VEHHook::VEHHandler(EXCEPTION_POINTERS* ExceptionInfo)
 
 			//Remove Int3 Breakpoint
 			MemoryProtect Protector(Ctx.m_Src, 1, PAGE_EXECUTE_READWRITE);
-			*Ctx.m_Src = Ctx.m_OriginalByte;
+			*Ctx.m_Src = Ctx.m_StorageByte;
 			
 			//Set instruction pointer to our callback
 			ExceptionInfo->ContextRecord->XIP = (DWORD_PTR) Ctx.m_Dest;
+			return EXCEPTION_CONTINUE_EXECUTION;
+		}
+	}else if (ExceptionCode == EXCEPTION_SINGLE_STEP) {
+		//Intel says clear Dr6, windows may do it for us, lets be safe
+		ExceptionInfo->ContextRecord->Dr6 = 0; 
+		for (HookCtx& Ctx : m_HookTargets)
+		{
+			
+			if (Ctx.m_Type != VEHMethod::HARDWARE_BP)
+				continue;
+		
+			//Are we at a breakpoint that we placed?
+			if (ExceptionInfo->ContextRecord->XIP != (DWORD_PTR)Ctx.m_Src)
+				continue;
+		
+			//Clear the Debug Register
+			ExceptionInfo->ContextRecord->Dr7 &= ~(1 << (2 * Ctx.m_StorageByte));
+
+			//Set instruction pointer to callback
+			ExceptionInfo->ContextRecord->XIP = (DWORD_PTR)Ctx.m_Dest;
 			return EXCEPTION_CONTINUE_EXECUTION;
 		}
 	}else if (ExceptionCode == EXCEPTION_GUARD_PAGE) {

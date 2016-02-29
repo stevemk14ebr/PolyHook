@@ -7,6 +7,7 @@
 #include <vector>
 #include <mutex>
 #include <algorithm>
+#include <utility>
 #pragma comment(lib,"Dbghelp.lib")
 #pragma comment(lib,"capstone.lib")
 
@@ -93,9 +94,15 @@ namespace PLH {
 	{
 	public:
 		IHook() = default;
+		IHook(IHook&& other) = default; //move
+		IHook& operator=(IHook&& other) = default;//move assignment
+		IHook(const IHook& other) = delete; //copy
+		IHook& operator=(const IHook& other) = delete; //copy assignment
+		virtual ~IHook() = default;
+
 		virtual bool Hook() = 0;
 		virtual void UnHook() = 0;
-		virtual ~IHook() = default;
+	
 		virtual RuntimeError GetLastError() const;
 		virtual void PrintError(const RuntimeError& Err) const;
 	protected:
@@ -107,6 +114,8 @@ namespace PLH {
 	{
 	public:
 		AbstractDetour();
+		AbstractDetour(const AbstractDetour& other) = delete;
+		AbstractDetour& operator=(const AbstractDetour& other) = delete;
 		virtual ~AbstractDetour();
 		template<typename T>
 		void SetupHook(T* Src, T* Dest)
@@ -161,6 +170,10 @@ namespace PLH {
 	public:
 		friend class VFuncDetour;
 		X86Detour();
+		X86Detour(X86Detour&& other) = default; //move
+		X86Detour& operator=(X86Detour&& other) = default;//move assignment
+		X86Detour(const X86Detour& other) = delete; //copy
+		X86Detour& operator=(const X86Detour& other) = delete; //copy assignment
 		virtual ~X86Detour();
 
 		virtual bool Hook() override;
@@ -181,8 +194,11 @@ namespace PLH {
 		friend class VFuncDetour;
 		//Credits DarthTon, evolution536
 		X64Detour();
+		X64Detour(X64Detour&& other) = default; //move
+		X64Detour& operator=(X64Detour&& other) = default;//move assignment
+		X64Detour(const X64Detour& other) = delete; //copy
+		X64Detour& operator=(const X64Detour& other) = delete; //copy assignment
 		virtual ~X64Detour();
-
 		virtual bool Hook() override;
 	protected:
 		virtual x86_reg GetIpReg() override;
@@ -199,6 +215,10 @@ namespace PLH {
 	{
 	public:
 		VFuncSwap() = default;
+		VFuncSwap(VFuncSwap&& other) = default;
+		VFuncSwap& operator=(VFuncSwap&& other) = default;
+		VFuncSwap(const VFuncSwap& other) = delete;
+		VFuncSwap& operator=(const VFuncSwap& other) = delete;
 		virtual ~VFuncSwap() = default;
 		virtual bool Hook() override;
 		virtual void UnHook() override;
@@ -220,6 +240,10 @@ namespace PLH {
 	{
 	public:
 		VFuncDetour();
+		VFuncDetour(VFuncDetour&& other) = default; //move
+		VFuncDetour& operator=(VFuncDetour&& other) = default;//move assignment
+		VFuncDetour(const VFuncDetour& other) = delete; //copy
+		VFuncDetour& operator=(const VFuncDetour& other) = delete; //copy assignment
 		virtual ~VFuncDetour();
 		virtual bool Hook() override;
 		virtual void UnHook() override;
@@ -233,7 +257,7 @@ namespace PLH {
 	protected:
 		virtual void PostError(const RuntimeError& Err) override;
 	private:
-		Detour* m_Detour;
+		std::unique_ptr<Detour> m_Detour;
 	};
 
 	//Credit to Dogmatt for IsValidPtr
@@ -248,6 +272,10 @@ namespace PLH {
 	{
 	public:
 		VTableSwap();
+		VTableSwap(VTableSwap&& other) = default; //move
+		VTableSwap& operator=(VTableSwap&& other) = default;//move assignment
+		VTableSwap(const VTableSwap& other) = delete; //copy
+		VTableSwap& operator=(const VTableSwap& other) = delete; //copy assignment
 		virtual ~VTableSwap();
 		virtual bool Hook() override;
 		template<typename T>
@@ -285,6 +313,10 @@ namespace PLH {
 	{
 	public:
 		IATHook() = default;
+		IATHook(IATHook&& other) = default; //move
+		IATHook& operator=(IATHook&& other) = default;//move assignment
+		IATHook(const IATHook& other) = delete; //copy
+		IATHook& operator=(const IATHook& other) = delete; //copy assignment
 		virtual ~IATHook() = default;
 		virtual bool Hook() override;
 		virtual void UnHook() override;
@@ -342,10 +374,15 @@ namespace PLH {
 		enum class VEHMethod
 		{
 			INT3_BP,
+			HARDWARE_BP,
 			GUARD_PAGE,
 			ERROR_TYPE
 		};
 		VEHHook();
+		VEHHook(VEHHook&& other) = default; //move
+		VEHHook& operator=(VEHHook&& other) = default;//move assignment
+		VEHHook(const VEHHook& other) = delete; //copy
+		VEHHook& operator=(const VEHHook& other) = delete; //copy assignment
 		virtual ~VEHHook() = default;
 		virtual bool Hook() override;
 		virtual void UnHook() override;
@@ -375,7 +412,11 @@ namespace PLH {
 			VEHMethod m_Type;
 			BYTE* m_Src;
 			BYTE* m_Dest;
-			BYTE m_OriginalByte;
+			BYTE m_StorageByte; 
+			/*Different methods store different things in this byte,
+			INT3_BP = hold the byte overwritten
+			HARDWARE_BP = the index of the debug register we used
+			GUARD_PAGE = unused*/
 
 			HookCtx(BYTE* Src, BYTE* Dest,VEHMethod Method)
 			{

@@ -19,7 +19,7 @@
   then swaps virtual function pointer in the new copy
 
 5. **Import Address Table**
-  * Description: Swaps pointer in the input address table to the hook
+  * Description: Swaps pointer in the import address table to the hook
 
 6. **VEH**
   * Description: Intercepts an exception generated on purpose, sets instruction pointer to handler, then resets exception generating mechanism

@@ -300,8 +300,7 @@ bool PLH::X86Detour::Hook()
 	for (int i = 5; i < m_OriginalLength; i++)
 		m_hkSrc[i] = 0x90;
 	FlushSrcInsCache();
-	//Revert to old protection on original function
-	VirtualProtect(m_hkSrc, m_hkLength, OldProtection, &OldProtection);
+
 	PostError(RuntimeError(RuntimeError::Severity::Warning, "PolyHook x86Detour: Some opcodes may not be relocated properly"));
 	return true;
 	/*Original

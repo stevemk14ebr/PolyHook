@@ -27,7 +27,9 @@ DWORD __stdcall hkGetCurrentThreadId()
 int __stdcall hkMessageBoxA(HWND hWnd, LPCTSTR lpText, LPCTSTR lpCaption, UINT uType)
 {
 	printf("In Hook\n");
-	return oMessageBoxA(hWnd, lpText, lpCaption, uType);
+	int Result =oMessageBoxA(hWnd, (LPCTSTR)"Hooked", lpCaption, uType);
+	printf("Still here\n");
+	return Result;
 }
 
 void __stdcall hkVirtNoParams(DWORD_PTR pThis)
@@ -133,7 +135,6 @@ int _tmain(int argc, _TCHAR* argv[])
 	VEHHook_Ex->UnHook();
 	VEHTest(1);
 	Hooks.push_back(VEHHook_Ex);*/
-
 
 	for (auto&& HookInstance : Hooks)
 	{

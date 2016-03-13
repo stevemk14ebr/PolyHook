@@ -90,6 +90,17 @@ namespace PLH {
 		std::string m_Message;
 	};
 
+	enum class HookType
+	{
+		X86Detour,
+		X64Detour,
+		VFuncSwap,
+		VFuncDetour,
+		VTableSwap,
+		IAT,
+		VEH,
+		UNKNOWN
+	};
 	class IHook
 	{
 	public:
@@ -102,9 +113,11 @@ namespace PLH {
 
 		virtual bool Hook() = 0;
 		virtual void UnHook() = 0;
-	
+		virtual HookType GetType() = 0;
+
 		virtual RuntimeError GetLastError() const;
 		virtual void PrintError(const RuntimeError& Err) const;
+		
 	protected:
 		virtual void PostError(const RuntimeError& Err);
 		RuntimeError m_LastError;
@@ -117,6 +130,7 @@ namespace PLH {
 		AbstractDetour(const AbstractDetour& other) = delete;
 		AbstractDetour& operator=(const AbstractDetour& other) = delete;
 		virtual ~AbstractDetour();
+
 		template<typename T>
 		void SetupHook(T* Src, T* Dest)
 		{
@@ -177,6 +191,7 @@ namespace PLH {
 		virtual ~X86Detour();
 
 		virtual bool Hook() override;
+		virtual HookType GetType() override;
 	protected:
 		virtual x86_reg GetIpReg() override;
 		virtual void FreeTrampoline();
@@ -199,7 +214,9 @@ namespace PLH {
 		X64Detour(const X64Detour& other) = delete; //copy
 		X64Detour& operator=(const X64Detour& other) = delete; //copy assignment
 		virtual ~X64Detour();
+
 		virtual bool Hook() override;
+		virtual HookType GetType() override;
 	protected:
 		virtual x86_reg GetIpReg() override;
 		virtual void FreeTrampoline() override;
@@ -220,8 +237,11 @@ namespace PLH {
 		VFuncSwap(const VFuncSwap& other) = delete;
 		VFuncSwap& operator=(const VFuncSwap& other) = delete;
 		virtual ~VFuncSwap() = default;
+
 		virtual bool Hook() override;
 		virtual void UnHook() override;
+		virtual HookType GetType() override;
+
 		void SetupHook(BYTE** Vtable, const int Index, BYTE* Dest);
 		template<typename T>
 		T GetOriginal()
@@ -245,8 +265,11 @@ namespace PLH {
 		VFuncDetour(const VFuncDetour& other) = delete; //copy
 		VFuncDetour& operator=(const VFuncDetour& other) = delete; //copy assignment
 		virtual ~VFuncDetour();
+
 		virtual bool Hook() override;
 		virtual void UnHook() override;
+		virtual HookType GetType() override;
+
 		void SetupHook(BYTE** Vtable, const int Index, BYTE* Dest);
 		template<typename T>
 		T GetOriginal()
@@ -277,7 +300,10 @@ namespace PLH {
 		VTableSwap(const VTableSwap& other) = delete; //copy
 		VTableSwap& operator=(const VTableSwap& other) = delete; //copy assignment
 		virtual ~VTableSwap();
+
 		virtual bool Hook() override;
+		virtual HookType GetType() override;
+
 		template<typename T>
 		T HookAdditional(const int Index, BYTE* Dest)
 		{
@@ -318,8 +344,11 @@ namespace PLH {
 		IATHook(const IATHook& other) = delete; //copy
 		IATHook& operator=(const IATHook& other) = delete; //copy assignment
 		virtual ~IATHook() = default;
+
 		virtual bool Hook() override;
 		virtual void UnHook() override;
+		virtual HookType GetType() override;
+
 		template<typename T>
 		T GetOriginal()
 		{
@@ -384,8 +413,11 @@ namespace PLH {
 		VEHHook(const VEHHook& other) = delete; //copy
 		VEHHook& operator=(const VEHHook& other) = delete; //copy assignment
 		virtual ~VEHHook() = default;
+
 		virtual bool Hook() override;
 		virtual void UnHook() override;
+		virtual HookType GetType() override;
+
 		template<typename T>
 		T GetOriginal()
 		{

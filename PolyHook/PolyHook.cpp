@@ -270,6 +270,11 @@ PLH::X86Detour::~X86Detour()
 		delete[] m_Trampoline;
 }
 
+PLH::HookType PLH::X86Detour::GetType()
+{
+	return PLH::HookType::X86Detour;
+}
+
 bool PLH::X86Detour::Hook()
 {
 	DWORD OldProtection;
@@ -360,6 +365,11 @@ PLH::X64Detour::X64Detour() :AbstractDetour()
 PLH::X64Detour::~X64Detour()
 {
 	FreeTrampoline();
+}
+
+PLH::HookType PLH::X64Detour::GetType()
+{
+	return PLH::HookType::X64Detour;
 }
 
 bool PLH::X64Detour::Hook()
@@ -463,6 +473,11 @@ int PLH::X64Detour::GetJMPSize()
 #endif
 
 /*----------------------------------------------*/
+PLH::HookType PLH::VFuncSwap::GetType()
+{
+	return PLH::HookType::VFuncSwap;
+}
+
 bool PLH::VFuncSwap::Hook()
 {
 	MemoryProtect Protector(&m_hkVtable[m_hkIndex], sizeof(void*), PAGE_READWRITE);
@@ -493,6 +508,11 @@ PLH::VFuncDetour::VFuncDetour() :IHook()
 PLH::VFuncDetour::~VFuncDetour()
 {
 	
+}
+
+PLH::HookType PLH::VFuncDetour::GetType()
+{
+	return PLH::HookType::VFuncDetour;
 }
 
 bool PLH::VFuncDetour::Hook()
@@ -528,6 +548,11 @@ PLH::VTableSwap::VTableSwap() :IHook()
 PLH::VTableSwap::~VTableSwap()
 {
 	FreeNewVtable();
+}
+
+PLH::HookType PLH::VTableSwap::GetType()
+{
+	return PLH::HookType::VTableSwap;
 }
 
 bool PLH::VTableSwap::Hook()
@@ -579,6 +604,11 @@ void PLH::VTableSwap::FreeNewVtable()
 }
 
 /*----------------------------------------------*/
+PLH::HookType PLH::IATHook::GetType()
+{
+	return PLH::HookType::IAT;
+}
+
 bool PLH::IATHook::Hook()
 {
 	PIMAGE_THUNK_DATA Thunk;
@@ -678,6 +708,11 @@ bool PLH::IATHook::FindIATFunc(const char* LibraryName,const char* FuncName, PIM
 }
 
 /*----------------------------------------------*/
+PLH::HookType PLH::VEHHook::GetType()
+{
+	return PLH::HookType::VEH;
+}
+
 std::vector<PLH::VEHHook::HookCtx> PLH::VEHHook::m_HookTargets;
 std::mutex PLH::VEHHook::m_TargetMutex;
 PLH::VEHHook::VEHHook()

@@ -67,7 +67,7 @@ PLH::RuntimeError PLH::IHook::GetLastError() const
 	return m_LastError;
 }
 
-PLH::AbstractDetour::AbstractDetour() :IHook(), m_NeedFree(false)
+PLH::AbstractDetour::AbstractDetour() :IHook(), m_NeedFree(false), m_Hooked(false)
 {
 #ifdef _WIN64
 	Initialize(CS_MODE_64);
@@ -93,6 +93,7 @@ void PLH::AbstractDetour::UnHook()
 	memcpy(m_hkSrc, m_OriginalCode, m_OriginalLength); //Copy original from trampoline back to src
 	FlushSrcInsCache();
 	FreeTrampoline();
+	m_Hooked = false;
 }
 
 DWORD PLH::AbstractDetour::CalculateLength(BYTE* Src, DWORD NeededLength)
@@ -266,8 +267,11 @@ PLH::X86Detour::X86Detour() : AbstractDetour()
 
 PLH::X86Detour::~X86Detour()
 {
-	if (m_NeedFree)
-		delete[] m_Trampoline;
+	if (m_Hooked)
+		UnHook();
+
+	if(m_NeedFree)
+		FreeTrampoline();
 }
 
 PLH::HookType PLH::X86Detour::GetType()
@@ -305,7 +309,7 @@ bool PLH::X86Detour::Hook()
 	for (int i = 5; i < m_OriginalLength; i++)
 		m_hkSrc[i] = 0x90;
 	FlushSrcInsCache();
-
+	m_Hooked = true;
 	PostError(RuntimeError(RuntimeError::Severity::Warning, "PolyHook x86Detour: Some opcodes may not be relocated properly"));
 	return true;
 	/*Original
@@ -364,7 +368,11 @@ PLH::X64Detour::X64Detour() :AbstractDetour()
 
 PLH::X64Detour::~X64Detour()
 {
-	FreeTrampoline();
+	if (m_Hooked)
+		UnHook();
+
+	if(m_NeedFree)
+		FreeTrampoline();
 }
 
 PLH::HookType PLH::X64Detour::GetType()
@@ -432,6 +440,7 @@ bool PLH::X64Detour::Hook()
 		m_hkSrc[i] = 0x90;
 
 	FlushInstructionCache(GetCurrentProcess(), m_hkSrc, m_hkLength);
+	m_Hooked = true;
 	PostError(RuntimeError(RuntimeError::Severity::Warning, "PolyHook x64Detour: Relocation can be out of range"));
 	return true;
 }
@@ -483,6 +492,7 @@ bool PLH::VFuncSwap::Hook()
 	MemoryProtect Protector(&m_hkVtable[m_hkIndex], sizeof(void*), PAGE_READWRITE);
 	m_OrigVFunc = m_hkVtable[m_hkIndex];
 	m_hkVtable[m_hkIndex] = m_hkDest;
+	m_Hooked = true;
 	return true;
 }
 
@@ -490,6 +500,7 @@ void PLH::VFuncSwap::UnHook()
 {
 	MemoryProtect Protector(&m_hkVtable[m_hkIndex], sizeof(void*), PAGE_READWRITE);
 	m_hkVtable[m_hkIndex] = m_OrigVFunc;
+	m_Hooked = false;
 }
 
 void PLH::VFuncSwap::SetupHook(BYTE** Vtable, const int Index, BYTE* Dest)
@@ -499,6 +510,16 @@ void PLH::VFuncSwap::SetupHook(BYTE** Vtable, const int Index, BYTE* Dest)
 	m_hkIndex = Index;
 }
 
+PLH::VFuncSwap::VFuncSwap() : m_Hooked(false)
+{
+
+}
+
+PLH::VFuncSwap::~VFuncSwap()
+{
+	if (m_Hooked)
+		UnHook();
+}
 /*----------------------------------------------*/
 PLH::VFuncDetour::VFuncDetour() :IHook()
 {
@@ -540,14 +561,18 @@ void PLH::VFuncDetour::PostError(const RuntimeError& Err)
 	m_Detour->PostError(Err);
 }
 /*----------------------------------------------*/
-PLH::VTableSwap::VTableSwap() :IHook()
+PLH::VTableSwap::VTableSwap() :IHook(), m_NeedFree(false),m_Hooked(false)
 {
-	m_NeedFree = false;
+	
 }
 
 PLH::VTableSwap::~VTableSwap()
 {
-	FreeNewVtable();
+	if (m_Hooked)
+		UnHook();
+
+	if(m_NeedFree)
+		FreeNewVtable();
 }
 
 PLH::HookType PLH::VTableSwap::GetType()
@@ -566,6 +591,7 @@ bool PLH::VTableSwap::Hook()
 	memcpy(m_NewVtable, m_OrigVtable, sizeof(void*)*m_VFuncCount);
 	*m_phkClass = m_NewVtable;
 	m_NewVtable[m_hkIndex] = m_hkDest;
+	m_Hooked = true;
 	return true;
 }
 
@@ -574,6 +600,7 @@ void PLH::VTableSwap::UnHook()
 	MemoryProtect Protector(m_phkClass, sizeof(void*), PAGE_READWRITE);
 	*m_phkClass = m_OrigVtable;
 	FreeNewVtable();
+	m_Hooked = false;
 }
 
 void PLH::VTableSwap::SetupHook(BYTE* pClass, const int Index, BYTE* Dest)
@@ -609,6 +636,17 @@ PLH::HookType PLH::IATHook::GetType()
 	return PLH::HookType::IAT;
 }
 
+PLH::IATHook::IATHook() : m_Hooked(false)
+{
+
+}
+
+PLH::IATHook::~IATHook()
+{
+	if (m_Hooked)
+		UnHook();
+}
+
 bool PLH::IATHook::Hook()
 {
 	PIMAGE_THUNK_DATA Thunk;
@@ -621,6 +659,7 @@ bool PLH::IATHook::Hook()
 	MemoryProtect Protector(Thunk, sizeof(ULONG_PTR), PAGE_EXECUTE_READWRITE);
 	m_pIATFuncOrig = (void*)Thunk->u1.Function;
 	Thunk->u1.Function = (ULONG_PTR)m_hkDest;
+	m_Hooked = true;
 	return true;
 }
 
@@ -632,6 +671,7 @@ void PLH::IATHook::UnHook()
 
 	MemoryProtect Protector(Thunk, sizeof(ULONG_PTR), PAGE_EXECUTE_READWRITE);
 	Thunk->u1.Function = (ULONG_PTR)m_pIATFuncOrig;
+	m_Hooked = false;
 }
 
 void PLH::IATHook::SetupHook(const char* LibraryName,const char* SrcFunc, BYTE* Dest,const char* Module)
@@ -715,7 +755,7 @@ PLH::HookType PLH::VEHHook::GetType()
 
 std::vector<PLH::VEHHook::HookCtx> PLH::VEHHook::m_HookTargets;
 std::mutex PLH::VEHHook::m_TargetMutex;
-PLH::VEHHook::VEHHook()
+PLH::VEHHook::VEHHook(): m_Hooked(false)
 {
 	//Get size of pages
 	SYSTEM_INFO si;
@@ -727,6 +767,12 @@ PLH::VEHHook::VEHHook()
 	{
 		PostError(RuntimeError(RuntimeError::Severity::UnRecoverable, "PolyHook VEH: Failed to create top level handler"));
 	}
+}
+
+PLH::VEHHook::~VEHHook()
+{
+	if (m_Hooked)
+		UnHook();
 }
 
 bool PLH::VEHHook::AreInSamePage(BYTE* Addr1, BYTE* Addr2)
@@ -850,6 +896,7 @@ bool PLH::VEHHook::Hook()
 		DWORD OldProtection;
 		VirtualProtect(m_ThisCtx.m_Src, 1 ,PAGE_EXECUTE_READWRITE | PAGE_GUARD, &OldProtection);
 	}
+	m_Hooked = true;
 	return true;
 }
 
@@ -877,9 +924,12 @@ void PLH::VEHHook::UnHook()
 			return;
 		}
 	}else if (m_ThisCtx.m_Type == VEHMethod::GUARD_PAGE) {
+		/*Force an exception, catch it, continue execution, and don't restore protection.
+		This effectively unhooks this type of hook, mark volatile so compiler doesn't optimize read away*/
 		volatile BYTE GenerateExceptionRead = *m_ThisCtx.m_Src;
 	}
 	m_HookTargets.erase(std::remove(m_HookTargets.begin(), m_HookTargets.end(), m_ThisCtx), m_HookTargets.end());
+	m_Hooked = false;
 }
 
 LONG CALLBACK PLH::VEHHook::VEHHandler(EXCEPTION_POINTERS* ExceptionInfo)

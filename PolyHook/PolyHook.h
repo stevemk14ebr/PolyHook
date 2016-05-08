@@ -170,6 +170,7 @@ namespace PLH {
 		DWORD m_OriginalLength;
 		BYTE* m_Trampoline;
 		bool m_NeedFree;
+		bool m_Hooked;
 		BYTE* m_hkSrc;
 		BYTE* m_hkDest;
 		DWORD m_hkLength;
@@ -231,12 +232,12 @@ namespace PLH {
 	class VFuncSwap : public IHook
 	{
 	public:
-		VFuncSwap() = default;
+		VFuncSwap();
 		VFuncSwap(VFuncSwap&& other) = default;
 		VFuncSwap& operator=(VFuncSwap&& other) = default;
 		VFuncSwap(const VFuncSwap& other) = delete;
 		VFuncSwap& operator=(const VFuncSwap& other) = delete;
-		virtual ~VFuncSwap() = default;
+		virtual ~VFuncSwap();
 
 		virtual bool Hook() override;
 		virtual void UnHook() override;
@@ -253,6 +254,7 @@ namespace PLH {
 		BYTE* m_hkDest;
 		BYTE* m_OrigVFunc;
 		int m_hkIndex;
+		bool m_Hooked;
 	};
 
 	//Detour the Function the VTable Points to
@@ -281,6 +283,8 @@ namespace PLH {
 		virtual void PostError(const RuntimeError& Err) override;
 	private:
 		std::unique_ptr<Detour> m_Detour;
+		/*We don't need an m_Hooked bool because this 
+		detour object above handles the unhook on destruction by itself*/
 	};
 
 	//Credit to Dogmatt for IsValidPtr
@@ -332,18 +336,19 @@ namespace PLH {
 		int    m_hkIndex;
 		int    m_VFuncCount;
 		bool m_NeedFree;
+		bool m_Hooked;
 	};
 
 #define ResolveRVA(base,rva) (( (BYTE*)base) +rva)
 	class IATHook:public IHook
 	{
 	public:
-		IATHook() = default;
+		IATHook();
 		IATHook(IATHook&& other) = default; //move
 		IATHook& operator=(IATHook&& other) = default;//move assignment
 		IATHook(const IATHook& other) = delete; //copy
 		IATHook& operator=(const IATHook& other) = delete; //copy assignment
-		virtual ~IATHook() = default;
+		virtual ~IATHook();
 
 		virtual bool Hook() override;
 		virtual void UnHook() override;
@@ -362,6 +367,7 @@ namespace PLH {
 		std::string m_hkModuleName;
 		BYTE* m_hkDest;
 		void* m_pIATFuncOrig;
+		bool m_Hooked;
 	};
 
 	template<typename Func>
@@ -412,7 +418,7 @@ namespace PLH {
 		VEHHook& operator=(VEHHook&& other) = default;//move assignment
 		VEHHook(const VEHHook& other) = delete; //copy
 		VEHHook& operator=(const VEHHook& other) = delete; //copy assignment
-		virtual ~VEHHook() = default;
+		virtual ~VEHHook();
 
 		virtual bool Hook() override;
 		virtual void UnHook() override;
@@ -474,6 +480,7 @@ namespace PLH {
 		static std::mutex m_TargetMutex;
 		HookCtx m_ThisCtx;
 		DWORD m_PageSize;
+		bool m_Hooked;
 	};
 }//end PLH namespace
 #endif//end include guard

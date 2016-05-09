@@ -34,7 +34,15 @@
 Credits to DarthTon, evolution536, Dogmatt
 
 #Samples:
-The file Tests.cpp provides examples for every type of hooking method. Accompanied with these examples is unit testing code provided by the fantastic library Catch (https://github.com/philsquared/Catch/blob/master/docs/tutorial.md). 
+The file Tests.cpp provides examples for every type of hooking method. Accompanied with these examples is unit testing code provided by the fantastic library Catch (https://github.com/philsquared/Catch/blob/master/docs/tutorial.md). With the addition of this code the example may look a little complex, the general interface is extremely simple, all hook types expose setup, hook, and unhook methods:
+
+'''C++
+std::shared_ptr<PLH::Detour> Detour_Ex(new PLH::Detour);
+Detour_Ex->SetupHook((BYTE*)&MessageBoxA,(BYTE*) &hkMessageBoxA); //can cast to byte* to
+Detour_Ex->Hook();
+oMessageBoxA = Detour_Ex->GetOriginal<tMessageBoxA>();
+Detour_Ex->UnHook();
+'''
 
 #LICENSE:
 MIT

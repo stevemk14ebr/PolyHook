@@ -33,5 +33,8 @@
 
 Credits to DarthTon, evolution536, Dogmatt
 
+#Samples:
+The file Tests.cpp provides examples for every type of hooking method. Accompanied with these examples is unit testing code provided by the fantastic library Catch (https://github.com/philsquared/Catch/blob/master/docs/tutorial.md). 
+
 #LICENSE:
 MIT

@@ -40,26 +40,57 @@ tGetCurrentThreadId oGetCurrentThreadID;
 
 DWORD __stdcall hkGetCurrentThreadId()
 {
-	
 	return oGetCurrentThreadID() + 1;
 }
 
-TEST_CASE("Hooks GetCurrentThreadId", "[IATHOOK]")
+typedef BOOL(__stdcall* tBitBlt)(HDC hdcDest, int nXDest, int nYDest, int nWidth, int nHeight,
+	HDC hdcSrc, int nXSrc, int nYSrc, DWORD dwRop);
+tBitBlt oBitBlt;
+
+//Just an int that gets incremented to verify handler got called for unit tests
+
+int BitBltHookVerifier = 0; 
+BOOL __stdcall hkBitBlt(HDC hdcDest, int nXDest, int nYDest, int nWidth, int nHeight,
+	HDC hdcSrc, int nXSrc, int nYSrc, DWORD dwRop)
+{
+	BitBltHookVerifier += 1337;
+	return oBitBlt(hdcDest, nXDest, nYDest, nWidth, nHeight, hdcSrc, nXSrc, nYSrc, dwRop);
+}
+
+TEST_CASE("Hooks Using IAT", "[IATHOOK]")
 {
 	std::shared_ptr<PLH::IATHook> IATHook_Ex(new PLH::IATHook);
 	DWORD RealThreadId = GetCurrentThreadId();
 
 	REQUIRE(IATHook_Ex->GetType() == PLH::HookType::IAT);
 
-	IATHook_Ex->SetupHook("kernel32.dll", "GetCurrentThreadId", (BYTE*)&hkGetCurrentThreadId);
-	REQUIRE(IATHook_Ex->Hook());
-	oGetCurrentThreadID = IATHook_Ex->GetOriginal<tGetCurrentThreadId>();
-	REQUIRE(GetCurrentThreadId() == RealThreadId + 1);
-	IATHook_Ex->UnHook();
-	REQUIRE(GetCurrentThreadId() == RealThreadId);
+	SECTION("GetCurrentThread Hook")
+	{
+		IATHook_Ex->SetupHook("kernel32.dll", "GetCurrentThreadId", (BYTE*)&hkGetCurrentThreadId);
+		REQUIRE(IATHook_Ex->Hook());
+		oGetCurrentThreadID = IATHook_Ex->GetOriginal<tGetCurrentThreadId>();
+		REQUIRE(GetCurrentThreadId() == RealThreadId + 1);
+		IATHook_Ex->UnHook();
+		REQUIRE(GetCurrentThreadId() == RealThreadId);
 
-	REQUIRE(IATHook_Ex->GetLastError().GetSeverity() != PLH::RuntimeError::Severity::UnRecoverable);
-	REQUIRE(IATHook_Ex->GetLastError().GetSeverity() != PLH::RuntimeError::Severity::Critical);
+		REQUIRE(IATHook_Ex->GetLastError().GetSeverity() != PLH::RuntimeError::Severity::UnRecoverable);
+		REQUIRE(IATHook_Ex->GetLastError().GetSeverity() != PLH::RuntimeError::Severity::Critical);
+	}
+	SECTION("BitBlt Hook")
+	{
+		REQUIRE(BitBltHookVerifier == 0);
+		IATHook_Ex->SetupHook("Gdi32.dll", "BitBlt", (BYTE*)&hkBitBlt);
+		REQUIRE(IATHook_Ex->Hook());
+		oBitBlt = IATHook_Ex->GetOriginal<tBitBlt>();
+		BitBlt(NULL, 0, 0, 0, 0, NULL, 0, 0, 0);
+		REQUIRE(BitBltHookVerifier == 1337);
+		IATHook_Ex->UnHook();
+		BitBlt(NULL, 0, 0, 0, 0, NULL, 0, 0, 0);
+		REQUIRE(BitBltHookVerifier == 1337);
+
+		REQUIRE(IATHook_Ex->GetLastError().GetSeverity() != PLH::RuntimeError::Severity::UnRecoverable);
+		REQUIRE(IATHook_Ex->GetLastError().GetSeverity() != PLH::RuntimeError::Severity::Critical);
+	}
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////

@@ -707,11 +707,11 @@ bool PLH::IATHook::FindIATFunc(const char* LibraryName,const char* FuncName, PIM
 
 		//Original holds the API Names
 		PIMAGE_THUNK_DATA pOriginalThunk = (PIMAGE_THUNK_DATA)
-			ResolveRVA(hInst, pImports->OriginalFirstThunk);
+			ResolveRVA(hInst, pImports[i].OriginalFirstThunk);
 
 		//FirstThunk is overwritten by loader with API addresses, we change this
 		PIMAGE_THUNK_DATA pThunk = (PIMAGE_THUNK_DATA)
-			ResolveRVA(hInst, pImports->FirstThunk);
+			ResolveRVA(hInst, pImports[i].FirstThunk);
 		
 		if (!pOriginalThunk)
 		{

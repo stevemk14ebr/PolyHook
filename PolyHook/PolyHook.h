@@ -200,6 +200,7 @@ namespace PLH {
 		virtual int GetJMPSize();
 	private:
 		void WriteRelativeJMP(DWORD Destination, DWORD JMPDestination);
+		void WriteAbsoluteJMP(DWORD Destination, DWORD JMPDestination);
 	};
 #else
 #define Detour X64Detour

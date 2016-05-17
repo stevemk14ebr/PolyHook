@@ -293,13 +293,14 @@ bool PLH::X86Detour::Hook()
 
 	m_Trampoline = new BYTE[m_hkLength + 30];   //Allocate Space for original plus extra to jump back and for jmp table
 	m_NeedFree = true;
-	VirtualProtect(m_Trampoline, m_hkLength + 5, PAGE_EXECUTE_READWRITE, &OldProtection); //Allow Execution
+	VirtualProtect(m_Trampoline, m_hkLength + 30, PAGE_EXECUTE_READWRITE, &OldProtection); //Allow Execution
 	
 	memcpy(m_OriginalCode, m_hkSrc, m_hkLength);
 	memcpy(m_Trampoline, m_hkSrc, m_hkLength); //Copy original into allocated space
+	WriteAbsoluteJMP((DWORD)&m_Trampoline[m_hkLength], (DWORD)m_hkSrc + m_hkLength); //JMP back to original code, use absolute so we don't accidentally relocate it
+	m_hkLength += 10; //Size of above jump
 	RelocateASM(m_Trampoline, m_hkLength, (DWORD)m_hkSrc, (DWORD)m_Trampoline);
-	WriteRelativeJMP((DWORD)&m_Trampoline[m_hkLength], (DWORD)m_hkSrc + m_hkLength); //JMP back to original code
-
+	
 	//Change protection to allow write on original function
 	MemoryProtect Protector(m_hkSrc, m_hkLength, PAGE_EXECUTE_READWRITE);
 	//Encode Jump from Hooked Function to the Destination function
@@ -343,6 +344,19 @@ void PLH::X86Detour::FreeTrampoline()
 		delete[] m_Trampoline;
 		m_NeedFree = false;
 	}
+}
+
+void PLH::X86Detour::WriteAbsoluteJMP(DWORD Destination, DWORD JMPDestination)
+{
+	/*
+	push eax
+    mov eax, 0xCCCCCCCC
+    xchg [rsp],eax
+    ret
+	*/
+	BYTE detour[] = { 0x50, 0xB8, 0xCC, 0xCC, 0xCC, 0xCC, 0x87, 0x04, 0x24, 0xC3 };
+	memcpy((BYTE*)Destination, detour, sizeof(detour));
+	*(DWORD*)&((BYTE*)Destination)[2] = JMPDestination;
 }
 
 void PLH::X86Detour::WriteRelativeJMP(DWORD Destination, DWORD JMPDestination)
@@ -416,10 +430,11 @@ bool PLH::X64Detour::Hook()
 
 	memcpy(m_OriginalCode, m_hkSrc, m_hkLength);
 	memcpy(m_Trampoline, m_hkSrc, m_hkLength);
+	WriteAbsoluteJMP((DWORD64)&m_Trampoline[m_hkLength], (DWORD64)m_hkSrc + m_hkLength);
+	m_hkLength += 16; //Size of the above absolute jmp
 	RelocateASM(m_Trampoline,m_hkLength, (DWORD64)m_hkSrc, (DWORD64)m_Trampoline);
 	//Write the jmp from our trampoline back to the original
-	WriteAbsoluteJMP((DWORD64)&m_Trampoline[m_hkLength], (DWORD64)m_hkSrc + m_hkLength); 
-
+	
 	// Build a far jump to the Destination function. (jmps not to address pointed at but to the value in the address)
 	MemoryProtect Protector(m_hkSrc, m_hkLength, PAGE_EXECUTE_READWRITE);
 	int HookSize = 0;

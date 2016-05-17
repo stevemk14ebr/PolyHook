@@ -6,13 +6,11 @@
 #include "CatchUnitTest.h"
 #define PLH_SHOW_DEBUG_MESSAGES 1 //To print messages even in release
 
-typedef int(__stdcall* tMessageBoxA)(HWND hWnd,LPCTSTR lpText,LPCTSTR lpCaption,UINT uType);
-tMessageBoxA oMessageBoxA;
-
-int __stdcall hkMessageBoxA(HWND hWnd, LPCTSTR lpText, LPCTSTR lpCaption, UINT uType)
+decltype(&MessageBoxA) oMessageBoxA;
+int __stdcall hkMessageBoxA(HWND hWnd, LPCSTR lpText, LPCSTR lpCaption, UINT uType)
 {
-	int Result = oMessageBoxA(hWnd, (LPCTSTR)"Hooked", lpCaption, uType);
-	REQUIRE(wcscmp((LPCTSTR)"Message",lpText) == 0);
+	int Result = oMessageBoxA(hWnd, "Hooked", lpCaption, uType);
+	REQUIRE(strcmp("Message",lpText) == 0);
 	return -10;
 }
 
@@ -23,7 +21,7 @@ TEST_CASE("Hooks MessageBox", "[Detours]")
 
 	Detour_Ex->SetupHook((BYTE*)&MessageBoxA,(BYTE*) &hkMessageBoxA); //can cast to byte* to
 	REQUIRE( Detour_Ex->Hook() );
-	oMessageBoxA = Detour_Ex->GetOriginal<tMessageBoxA>();
+	oMessageBoxA = Detour_Ex->GetOriginal<decltype(&MessageBoxA)>();
 
 	REQUIRE(MessageBoxA(NULL, "Message", "Sample", MB_OK) == -10); //The return value set by our handler
 	Detour_Ex->UnHook();
@@ -34,6 +32,7 @@ TEST_CASE("Hooks MessageBox", "[Detours]")
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////
+
 
 typedef DWORD(__stdcall* tGetCurrentThreadId)();
 tGetCurrentThreadId oGetCurrentThreadID;

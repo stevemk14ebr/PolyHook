@@ -7,7 +7,7 @@
 #define PLH_SHOW_DEBUG_MESSAGES 1 //To print messages even in release
 
 decltype(&MessageBoxA) oMessageBoxA;
-int __stdcall hkMessageBoxA(HWND hWnd, LPCSTR lpText, LPCSTR lpCaption, UINT uType)
+int WINAPI hkMessageBoxA(HWND hWnd, LPCSTR lpText, LPCSTR lpCaption, UINT uType)
 {
 	int Result = oMessageBoxA(hWnd, "Hooked", lpCaption, uType);
 	REQUIRE(strcmp("Message",lpText) == 0);
@@ -27,6 +27,41 @@ TEST_CASE("Hooks MessageBox", "[Detours]")
 	Detour_Ex->UnHook();
 	REQUIRE(MessageBoxA(NULL, "Message", "Sample", MB_OK) == IDOK);
 
+	REQUIRE(Detour_Ex->GetLastError().GetSeverity() != PLH::RuntimeError::Severity::UnRecoverable);
+	REQUIRE(Detour_Ex->GetLastError().GetSeverity() != PLH::RuntimeError::Severity::Critical);
+}
+
+decltype(&WriteProcessMemory) oWriteProcessMemory;
+BYTE DummyBuffer2[] = { 0x13,0x24,0x36,0x38 };
+BOOL WINAPI hkWriteProcessMemory(HANDLE  hProcess,LPVOID  lpBaseAddress,LPCVOID lpBuffer,SIZE_T  nSize,SIZE_T  *lpNumberOfBytesWritten)
+{
+	lpBuffer = &DummyBuffer2;
+	nSize = sizeof(DummyBuffer2);
+	return oWriteProcessMemory(hProcess, lpBaseAddress, lpBuffer, nSize, lpNumberOfBytesWritten);
+}
+
+TEST_CASE("Hooks WriteProcessMemory", "[Detours]")
+{
+	std::shared_ptr<PLH::Detour> Detour_Ex(new PLH::Detour);
+	REQUIRE(Detour_Ex->GetType() == PLH::HookType::Detour);
+
+	Detour_Ex->SetupHook((BYTE*)&WriteProcessMemory, (BYTE*)&hkWriteProcessMemory); //can cast to byte* to
+	REQUIRE(Detour_Ex->Hook());
+	oWriteProcessMemory = Detour_Ex->GetOriginal<decltype(&WriteProcessMemory)>();
+
+	BYTE Buffer[] = { 0x00,0x12,0x44,0x91 };
+	BYTE Buffer2[] = { 0x11,0x21,0x56,0x78};
+
+	REQUIRE(Buffer[0] == 0x00);
+	SIZE_T Written = 0;
+	WriteProcessMemory(GetCurrentProcess(), &Buffer, &Buffer2, sizeof(Buffer2), &Written);
+	REQUIRE(Buffer[0] == 0x13); //Make sure our hook changed the data written to the data in the dummy buffer
+	Detour_Ex->UnHook();
+	
+	Written = 0;
+	WriteProcessMemory(GetCurrentProcess(), &Buffer, &Buffer2, sizeof(Buffer2), &Written);
+	REQUIRE(Buffer[0] == 0x11);
+	
 	REQUIRE(Detour_Ex->GetLastError().GetSeverity() != PLH::RuntimeError::Severity::UnRecoverable);
 	REQUIRE(Detour_Ex->GetLastError().GetSeverity() != PLH::RuntimeError::Severity::Critical);
 }
@@ -185,6 +220,7 @@ __declspec(noinline) int __stdcall hkVEHTest(int param)
 
 TEST_CASE("Hooks a function using vectored exception handler", "[VEHHook]")
 {
+	//THESE TESTS CANNOT BE RUN IN A DEBUGGER
 	VEHHook_Ex = std::make_shared<PLH::VEHHook>();
 
 	REQUIRE(VEHHook_Ex->GetType() == PLH::HookType::VEH);

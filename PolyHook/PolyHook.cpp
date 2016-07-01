@@ -298,7 +298,7 @@ bool PLH::X86Detour::Hook()
 	memcpy(m_OriginalCode, m_hkSrc, m_hkLength);
 	memcpy(m_Trampoline, m_hkSrc, m_hkLength); //Copy original into allocated space
 	WriteAbsoluteJMP((DWORD)&m_Trampoline[m_hkLength], (DWORD)m_hkSrc + m_hkLength); //JMP back to original code, use absolute so we don't accidentally relocate it
-	m_hkLength += 10; //Size of above jump
+	m_hkLength += 6; //Size of above jump
 	RelocateASM(m_Trampoline, m_hkLength, (DWORD)m_hkSrc, (DWORD)m_Trampoline);
 	
 	//Change protection to allow write on original function
@@ -349,14 +349,12 @@ void PLH::X86Detour::FreeTrampoline()
 void PLH::X86Detour::WriteAbsoluteJMP(DWORD Destination, DWORD JMPDestination)
 {
 	/*
-	push eax
-    mov eax, 0xCCCCCCCC
-    xchg [rsp],eax
-    ret
+	push <addr>
+	ret
 	*/
-	BYTE detour[] = { 0x50, 0xB8, 0xCC, 0xCC, 0xCC, 0xCC, 0x87, 0x04, 0x24, 0xC3 };
+	BYTE detour[] = { 0x68, 0xCC, 0xCC, 0xCC, 0xCC, 0xC3 };
 	memcpy((BYTE*)Destination, detour, sizeof(detour));
-	*(DWORD*)&((BYTE*)Destination)[2] = JMPDestination;
+	*(DWORD*)&((BYTE*)Destination)[1] = JMPDestination;
 }
 
 void PLH::X86Detour::WriteRelativeJMP(DWORD Destination, DWORD JMPDestination)

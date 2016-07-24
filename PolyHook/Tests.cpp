@@ -66,6 +66,33 @@ TEST_CASE("Hooks WriteProcessMemory", "[Detours]")
 	REQUIRE(Detour_Ex->GetLastError().GetSeverity() != PLH::RuntimeError::Severity::Critical);
 }
 
+decltype(&GetCommandLine) oGetCommandLine;
+int CommandLineVerifier = 0;
+LPTSTR WINAPI hkGetCommandLine()
+{
+	CommandLineVerifier = 1294;
+	LPTSTR ReturnVal = oGetCommandLine();
+	return ReturnVal;
+}
+
+TEST_CASE("Hooks GetCommandLine", "[Detours]")
+{
+	std::shared_ptr<PLH::Detour> Detour_Ex(new PLH::Detour);
+	REQUIRE(Detour_Ex->GetType() == PLH::HookType::Detour);
+
+	Detour_Ex->SetupHook((BYTE*)&GetCommandLine, (BYTE*)&hkGetCommandLine); //can cast to byte* to
+	REQUIRE(Detour_Ex->Hook());
+	oGetCommandLine = Detour_Ex->GetOriginal<decltype(&GetCommandLine)>();
+
+	REQUIRE(CommandLineVerifier == 0);
+	GetCommandLine();
+	REQUIRE(CommandLineVerifier == 1294);
+	Detour_Ex->UnHook();
+	REQUIRE(CommandLineVerifier == 1294);
+
+	REQUIRE(Detour_Ex->GetLastError().GetSeverity() != PLH::RuntimeError::Severity::UnRecoverable);
+	REQUIRE(Detour_Ex->GetLastError().GetSeverity() != PLH::RuntimeError::Severity::Critical);
+}
 /////////////////////////////////////////////////////////////////////////////////////////////////
 
 

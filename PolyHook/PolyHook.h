@@ -8,6 +8,7 @@
 #include <mutex>
 #include <algorithm>
 #include <utility>
+#include <TlHelp32.h>
 #pragma comment(lib,"Dbghelp.lib")
 #pragma comment(lib,"capstone.lib")
 
@@ -120,6 +121,10 @@ namespace PLH {
 		
 	protected:
 		virtual void PostError(const RuntimeError& Err);
+
+		//Does not suspend the thread with the ID passed in, Suspend == false calls resume thread
+		virtual void ToggleThreadSuspension(DWORD CallingThreadId, bool Suspend); 
+
 		RuntimeError m_LastError;
 	};
 

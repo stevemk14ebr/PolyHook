@@ -24,15 +24,16 @@ namespace PLH {
 				m_hThread = OpenThread(DesiredAccessFlags, FALSE, ThreadId);
 			}
 
+			//false resumes, true suspends
 			void ToggleSuspend(bool Suspend)
 			{
 				if (Suspend && !m_IsSuspended)
 				{
-					SuspendThread(m_hThread);
-					m_IsSuspended = true;
+					if(SuspendThread(m_hThread) != -1)
+						m_IsSuspended = true;
 				}else if (!Suspend && m_IsSuspended){
-					ResumeThread(m_hThread);
-					m_IsSuspended = false;
+					if(ResumeThread(m_hThread) != -1);
+						m_IsSuspended = false;
 				}
 			}
 

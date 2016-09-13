@@ -32,7 +32,7 @@ namespace PLH {
 					if(SuspendThread(m_hThread) != -1)
 						m_IsSuspended = true;
 				}else if (!Suspend && m_IsSuspended){
-					if(ResumeThread(m_hThread) != -1);
+					if(ResumeThread(m_hThread) != -1)
 						m_IsSuspended = false;
 				}
 			}

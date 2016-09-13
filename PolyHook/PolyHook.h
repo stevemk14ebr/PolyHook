@@ -74,7 +74,7 @@ namespace PLH {
 			{
 				m_SuspendedThreads.clear();
 				HANDLE h = CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0);
-				if (h != INVALID_HANDLE_VALUE)
+				if (h == INVALID_HANDLE_VALUE)
 					return;
 
 				THREADENTRY32 te;

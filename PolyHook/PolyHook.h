@@ -13,6 +13,88 @@
 #pragma comment(lib,"capstone.lib")
 
 namespace PLH {
+	namespace Tools
+	{
+		class ThreadHandle
+		{
+		public:
+			//Thread ID, OpenThread's AccessFlag 
+			ThreadHandle(DWORD ThreadId, DWORD  DesiredAccessFlags) : m_ThreadId(ThreadId), m_IsSuspended(false)
+			{
+				m_hThread = OpenThread(DesiredAccessFlags, FALSE, ThreadId);
+			}
+
+			void ToggleSuspend(bool Suspend)
+			{
+				if (Suspend && !m_IsSuspended)
+				{
+					SuspendThread(m_hThread);
+					m_IsSuspended = true;
+				}else if (!Suspend && m_IsSuspended){
+					ResumeThread(m_hThread);
+					m_IsSuspended = false;
+				}
+			}
+
+			~ThreadHandle()
+			{
+				if (m_IsSuspended)
+					ToggleSuspend(false);
+
+				if (!m_hThread)
+					CloseHandle(m_hThread);
+			}
+		private:
+			bool m_IsSuspended;
+			HANDLE m_hThread;
+			DWORD m_ThreadId;
+		};
+
+		class ThreadManager
+		{
+		public:
+			void SuspendThreads()
+			{
+				UpdateThreadList(GetCurrentThreadId());
+				for (ThreadHandle& ThreadInstance : m_SuspendedThreads)
+				{
+					ThreadInstance.ToggleSuspend(true);
+				}
+			}
+			void ResumeThreads()
+			{
+				for (ThreadHandle& ThreadInstance : m_SuspendedThreads)
+				{
+					ThreadInstance.ToggleSuspend(false);
+				}
+			}
+		private:
+			void UpdateThreadList(DWORD CallingThreadId)
+			{
+				m_SuspendedThreads.clear();
+				HANDLE h = CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0);
+				if (h != INVALID_HANDLE_VALUE)
+					return;
+
+				THREADENTRY32 te;
+				te.dwSize = sizeof(te);
+				for (Thread32First(h, &te); Thread32Next(h, &te); )
+				{
+					if (te.dwSize >= FIELD_OFFSET(THREADENTRY32, th32OwnerProcessID) + sizeof(te.th32OwnerProcessID))
+					{
+						if (te.th32ThreadID != CallingThreadId && te.th32OwnerProcessID == GetCurrentProcessId())
+						{
+							m_SuspendedThreads.emplace_back(te.th32ThreadID, THREAD_SUSPEND_RESUME);
+						}
+					}
+					te.dwSize = sizeof(te);
+				}
+				CloseHandle(h);
+			}
+			std::vector<Tools::ThreadHandle> m_SuspendedThreads;
+		};
+	}
+
 	class ASMHelper
 	{
 	public:
@@ -118,12 +200,8 @@ namespace PLH {
 
 		virtual RuntimeError GetLastError() const;
 		virtual void PrintError(const RuntimeError& Err) const;
-		
 	protected:
 		virtual void PostError(const RuntimeError& Err);
-
-		//Does not suspend the thread with the ID passed in, Suspend == false calls resume thread
-		virtual void ToggleThreadSuspension(DWORD CallingThreadId, bool Suspend); 
 
 		RuntimeError m_LastError;
 	};

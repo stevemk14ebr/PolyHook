@@ -62,37 +62,6 @@ void PLH::IHook::PrintError(const RuntimeError& Err) const
 		Err.GetString().c_str()); 
 }
 
-void PLH::IHook::ToggleThreadSuspension(DWORD CallingThreadId, bool Suspend)
-{
-	HANDLE h = CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0);
-	if (h != INVALID_HANDLE_VALUE)
-		return;
-
-	THREADENTRY32 te;
-	te.dwSize = sizeof(te);
-	for (Thread32First(h, &te); Thread32Next(h, &te); )
-	{
-		if (te.dwSize >= FIELD_OFFSET(THREADENTRY32, th32OwnerProcessID) + sizeof(te.th32OwnerProcessID))
-		{
-			// Suspend all threads EXCEPT the one we want to keep running
-			if (te.th32ThreadID != CallingThreadId && te.th32OwnerProcessID == GetCurrentProcessId())
-			{
-				HANDLE thread = OpenThread(THREAD_SUSPEND_RESUME, FALSE, te.th32ThreadID);
-				if (thread == NULL)
-					continue;
-				
-				if (Suspend)
-					SuspendThread(thread);
-				else
-					ResumeThread(thread);
-				CloseHandle(thread);
-			}
-		}
-		te.dwSize = sizeof(te);
-	}
-	CloseHandle(h);
-}
-
 PLH::RuntimeError PLH::IHook::GetLastError() const
 {
 	return m_LastError;
@@ -321,7 +290,11 @@ bool PLH::X86Detour::Hook()
 		XTrace("Function to small to hook\n");
 		return false;
 	}
-	this->ToggleThreadSuspension(GetCurrentThreadId(), true);
+
+	//TODO: Add single step support in case processes EIP is on/in the section we write to
+	Tools::ThreadManager ThreadMngr;
+	ThreadMngr.SuspendThreads();
+
 	m_Trampoline = new BYTE[m_hkLength + 30];   //Allocate Space for original plus extra to jump back and for jmp table
 	m_NeedFree = true;
 	VirtualProtect(m_Trampoline, m_hkLength + 30, PAGE_EXECUTE_READWRITE, &OldProtection); //Allow Execution
@@ -341,7 +314,7 @@ bool PLH::X86Detour::Hook()
 	for (int i = 5; i < m_OriginalLength; i++)
 		m_hkSrc[i] = 0x90;
 
-	this->ToggleThreadSuspension(GetCurrentThreadId(), false);
+	ThreadMngr.ResumeThreads();
 	FlushSrcInsCache();
 	m_Hooked = true;
 	PostError(RuntimeError(RuntimeError::Severity::Warning, "PolyHook x86Detour: Some opcodes may not be relocated properly"));
@@ -458,8 +431,10 @@ bool PLH::X64Detour::Hook()
 			return false;
 		}
 	}
+	//TODO: Add single step support in case processes RIP is on/in the section we write to
+	Tools::ThreadManager ThreadMngr;
+	ThreadMngr.SuspendThreads();
 
-	this->ToggleThreadSuspension(GetCurrentThreadId(), true);
 	memcpy(m_OriginalCode, m_hkSrc, m_hkLength);
 	memcpy(m_Trampoline, m_hkSrc, m_hkLength);
 	WriteAbsoluteJMP((DWORD64)&m_Trampoline[m_hkLength], (DWORD64)m_hkSrc + m_hkLength);
@@ -486,7 +461,7 @@ bool PLH::X64Detour::Hook()
 	for (int i = HookSize; i < m_OriginalLength; i++)
 		m_hkSrc[i] = 0x90;
 
-	this->ToggleThreadSuspension(GetCurrentThreadId(), false);
+	ThreadMngr.ResumeThreads();
 	FlushInstructionCache(GetCurrentProcess(), m_hkSrc, m_hkLength);
 	m_Hooked = true;
 	PostError(RuntimeError(RuntimeError::Severity::Warning, "PolyHook x64Detour: Relocation can be out of range"));

@@ -1,4 +1,5 @@
 #include "PolyHook.h"
+#define PLH_SHOW_DEBUG_MESSAGES 1
 void XTrace(char* fmt, ...)
 {
 	va_list args;
@@ -125,10 +126,10 @@ DWORD PLH::AbstractDetour::CalculateLength(BYTE* Src, DWORD NeededLength)
 	return InstructionSize;
 }
 
-void PLH::AbstractDetour::RelocateASM(BYTE* Code, DWORD& CodeSize, DWORD64 From, DWORD64 To)
+void PLH::AbstractDetour::RelocateASM(BYTE* Code, DWORD* CodeSize, DWORD64 From, DWORD64 To)
 {
 	cs_insn* InstructionInfo;
-	size_t InstructionCount = cs_disasm(m_CapstoneHandle, Code, CodeSize, (uint64_t)Code, 0, &InstructionInfo);
+	size_t InstructionCount = cs_disasm(m_CapstoneHandle, Code, *CodeSize, (uint64_t)Code, 0, &InstructionInfo);
 
 	XTrace("\nTrampoline:\n");
 	for (int i = 0; i < InstructionCount; i++)
@@ -178,7 +179,7 @@ void PLH::AbstractDetour::RelocateASM(BYTE* Code, DWORD& CodeSize, DWORD64 From,
 	}
 
 	XTrace("\nFixed Trampoline\n");
-	InstructionCount = cs_disasm(m_CapstoneHandle, Code, CodeSize, (uint64_t)Code, 0, &InstructionInfo);
+	InstructionCount = cs_disasm(m_CapstoneHandle, Code, *CodeSize, (uint64_t)Code, 0, &InstructionInfo);
 	for (int i = 0; i < InstructionCount; i++)
 	{
 		cs_insn* CurIns = (cs_insn*)&InstructionInfo[i];
@@ -214,7 +215,11 @@ void PLH::AbstractDetour::_Relocate(cs_insn* CurIns, DWORD64 From, DWORD64 To, c
 
 void PLH::AbstractDetour::FlushSrcInsCache()
 {
-	FlushInstructionCache(GetCurrentProcess(), m_hkSrc, m_hkLength);
+	//Flush overwritten original
+	FlushInstructionCache(GetCurrentProcess(), m_hkSrc, m_OriginalLength);
+
+	//Flush trampoline
+	FlushInstructionCache(GetCurrentProcess(), m_Trampoline, m_hkLength);
 }
 
 void PLH::AbstractDetour::Initialize(cs_mode Mode)
@@ -225,14 +230,14 @@ void PLH::AbstractDetour::Initialize(cs_mode Mode)
 	cs_option(m_CapstoneHandle, CS_OPT_DETAIL, CS_OPT_ON);
 }
 
-void PLH::AbstractDetour::RelocateConditionalJMP(cs_insn* CurIns, DWORD& CodeSize, DWORD64 From, DWORD64 To, const uint8_t DispSize, const uint8_t DispOffset)
+void PLH::AbstractDetour::RelocateConditionalJMP(cs_insn* CurIns, DWORD* CodeSize, DWORD64 From, DWORD64 To, const uint8_t DispSize, const uint8_t DispOffset)
 {
 	/*This function automatically begins to build a jump table at the end of the trampoline to allow relative jumps to function properly:
 	-Changes relative jump to point to an absolute jump
 	-Absolute jump then does the long distance to jump to where the relative jump originally went
 	*/
 	ASMHelper::DISP DispType = m_ASMInfo.GetDisplacementType(DispSize);
-	DWORD64 TrampolineEnd = To + CodeSize;
+	DWORD64 TrampolineEnd = To + (*CodeSize);
 	if (DispType == ASMHelper::DISP::D_INT8)
 	{
 		int8_t Disp = m_ASMInfo.GetDisplacement<int8_t>(CurIns->bytes, DispOffset);
@@ -240,21 +245,21 @@ void PLH::AbstractDetour::RelocateConditionalJMP(cs_insn* CurIns, DWORD& CodeSiz
 		WriteJMP(TrampolineEnd, OriginalDestination);
 		Disp = CalculateRelativeDisplacement<int8_t>(CurIns->address, (DWORD64)TrampolineEnd, CurIns->size); //set relative jmp to go to our absolute
 		*(int8_t*)(CurIns->address + DispOffset) = Disp;
-		CodeSize += GetJMPSize();
+		(*CodeSize) += GetJMPSize();
 	}else if (DispType == ASMHelper::DISP::D_INT16) {
 		int16_t Disp = Disp = m_ASMInfo.GetDisplacement<int16_t>(CurIns->bytes, DispOffset);
 		DWORD64 OriginalDestination = CurIns->address + (Disp - (To - From)) + CurIns->size;
 		WriteJMP(TrampolineEnd, OriginalDestination);
 		Disp = CalculateRelativeDisplacement<int16_t>(CurIns->address, (DWORD64)TrampolineEnd, CurIns->size);
 		*(int16_t*)(CurIns->address + DispOffset) = Disp;
-		CodeSize += GetJMPSize();
+		(*CodeSize) += GetJMPSize();
 	}else if (DispType == ASMHelper::DISP::D_INT32) {
 		int32_t Disp = Disp = m_ASMInfo.GetDisplacement<int32_t>(CurIns->bytes, DispOffset);
 		DWORD64 OriginalDestination = CurIns->address + (Disp - (To - From)) + CurIns->size;
 		WriteJMP(TrampolineEnd, OriginalDestination);
 		Disp = CalculateRelativeDisplacement<int32_t>(CurIns->address, (DWORD64)TrampolineEnd, CurIns->size);
 		*(int32_t*)(CurIns->address + DispOffset) = Disp;
-		CodeSize += GetJMPSize();
+		(*CodeSize) += GetJMPSize();
 	}
 }
 
@@ -303,7 +308,7 @@ bool PLH::X86Detour::Hook()
 	memcpy(m_Trampoline, m_hkSrc, m_hkLength); //Copy original into allocated space
 	WriteAbsoluteJMP((DWORD)&m_Trampoline[m_hkLength], (DWORD)m_hkSrc + m_hkLength); //JMP back to original code, use absolute so we don't accidentally relocate it
 	m_hkLength += 6; //Size of above jump
-	RelocateASM(m_Trampoline, m_hkLength, (DWORD)m_hkSrc, (DWORD)m_Trampoline);
+	RelocateASM(m_Trampoline, &m_hkLength, (DWORD)m_hkSrc, (DWORD)m_Trampoline);
 	
 	//Change protection to allow write on original function
 	MemoryProtect Protector(m_hkSrc, m_hkLength, PAGE_EXECUTE_READWRITE);
@@ -439,7 +444,7 @@ bool PLH::X64Detour::Hook()
 	memcpy(m_Trampoline, m_hkSrc, m_hkLength);
 	WriteAbsoluteJMP((DWORD64)&m_Trampoline[m_hkLength], (DWORD64)m_hkSrc + m_hkLength);
 	m_hkLength += 16; //Size of the above absolute jmp
-	RelocateASM(m_Trampoline,m_hkLength, (DWORD64)m_hkSrc, (DWORD64)m_Trampoline);
+	RelocateASM(m_Trampoline,&m_hkLength, (DWORD64)m_hkSrc, (DWORD64)m_Trampoline);
 	//Write the jmp from our trampoline back to the original
 	
 	// Build a far jump to the Destination function. (jmps not to address pointed at but to the value in the address)

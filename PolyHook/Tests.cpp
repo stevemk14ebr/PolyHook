@@ -1,10 +1,11 @@
 // PolyHook.cpp : Defines the entry point for the console application.
 //
 #include <tchar.h>
-#include "PolyHook.h"
-#define CATCH_CONFIG_MAIN
-#include "CatchUnitTest.h"
 #define PLH_SHOW_DEBUG_MESSAGES 1 //To print messages even in release
+#define CATCH_CONFIG_MAIN
+#include "PolyHook.h"
+#include "CatchUnitTest.h"
+
 
 decltype(&MessageBoxA) oMessageBoxA;
 int WINAPI hkMessageBoxA(HWND hWnd, LPCSTR lpText, LPCSTR lpCaption, UINT uType)

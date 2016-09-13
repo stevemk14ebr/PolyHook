@@ -11,10 +11,21 @@
 #include <TlHelp32.h>
 #pragma comment(lib,"Dbghelp.lib")
 #pragma comment(lib,"capstone.lib")
+#define PLH_SHOW_DEBUG_MESSAGES 1 //To print messages even in release
 
 namespace PLH {
 	namespace Tools
 	{
+		inline void XTrace(char* fmt, ...)
+		{
+			va_list args;
+			va_start(args, fmt);
+#if defined(_DEBUG) || defined(PLH_SHOW_DEBUG_MESSAGES)
+			vfprintf_s(stdout, fmt, args);
+#endif
+			va_end(args);
+		}
+
 		class ThreadHandle
 		{
 		public:

@@ -1,15 +1,4 @@
 #include "PolyHook.h"
-#define PLH_SHOW_DEBUG_MESSAGES 1
-void XTrace(char* fmt, ...)
-{
-	va_list args;
-	va_start(args, fmt);
-#if defined(_DEBUG) || defined(PLH_SHOW_DEBUG_MESSAGES)
-	vfprintf_s(stdout, fmt, args);
-#endif
-	va_end(args);
-}
-
 PLH::RuntimeError::RuntimeError()
 {
 	m_Message = "";
@@ -35,7 +24,7 @@ const PLH::RuntimeError::Severity PLH::RuntimeError::GetSeverity() const
 void PLH::IHook::PostError(const RuntimeError& Err)
 {
 	m_LastError = Err;
-	XTrace("Posted Error [SEVERITY:%d]:\n"
+	PLH::Tools::XTrace("Posted Error [SEVERITY:%d]:\n"
 		"%s\n",Err.GetSeverity(), Err.GetString().c_str());
 }
 
@@ -59,7 +48,7 @@ void PLH::IHook::PrintError(const RuntimeError& Err) const
 	default:
 		Severity = "Unknown";
 	}
-	XTrace("SEVERITY:[%s] %s\n", Severity.c_str(),
+	PLH::Tools::XTrace("SEVERITY:[%s] %s\n", Severity.c_str(),
 		Err.GetString().c_str()); 
 }
 
@@ -104,7 +93,7 @@ DWORD PLH::AbstractDetour::CalculateLength(BYTE* Src, DWORD NeededLength)
 	size_t InstructionCount = cs_disasm(m_CapstoneHandle, Src, 0x100, (uint64_t)Src, 0, &InstructionInfo);
 
 	//Loop over instructions until we have at least NeededLength's Size
-	XTrace("\nORIGINAL:\n");
+	PLH::Tools::XTrace("\nORIGINAL:\n");
 	DWORD InstructionSize = 0;
 	bool BigEnough = false;
 	for (int i = 0; i < InstructionCount && !BigEnough; i++)
@@ -114,10 +103,10 @@ DWORD PLH::AbstractDetour::CalculateLength(BYTE* Src, DWORD NeededLength)
 		if (InstructionSize >= NeededLength)
 			BigEnough = true;
 
-		XTrace("%I64X [%d]: ", CurIns->address, CurIns->size);
+		PLH::Tools::XTrace("%I64X [%d]: ", CurIns->address, CurIns->size);
 		for (int j = 0; j < CurIns->size; j++)
-			XTrace("%02X ", CurIns->bytes[j]);
-		XTrace("%s %s\n", CurIns->mnemonic, CurIns->op_str);
+			PLH::Tools::XTrace("%02X ", CurIns->bytes[j]);
+		PLH::Tools::XTrace("%s %s\n", CurIns->mnemonic, CurIns->op_str);
 	}
 	if (!BigEnough)
 		InstructionSize = 0;
@@ -131,16 +120,16 @@ void PLH::AbstractDetour::RelocateASM(BYTE* Code, DWORD* CodeSize, DWORD64 From,
 	cs_insn* InstructionInfo;
 	size_t InstructionCount = cs_disasm(m_CapstoneHandle, Code, *CodeSize, (uint64_t)Code, 0, &InstructionInfo);
 
-	XTrace("\nTrampoline:\n");
+	PLH::Tools::XTrace("\nTrampoline:\n");
 	for (int i = 0; i < InstructionCount; i++)
 	{
 		cs_insn* CurIns = (cs_insn*)&InstructionInfo[i];
 		cs_x86* x86 = &(CurIns->detail->x86);
 
-		XTrace("%I64X: ", CurIns->address);
+		PLH::Tools::XTrace("%I64X: ", CurIns->address);
 		for (int j = 0; j < CurIns->size; j++)
-			XTrace("%02X ", CurIns->bytes[j]);
-		XTrace("%s %s\n", CurIns->mnemonic,CurIns->op_str);
+			PLH::Tools::XTrace("%02X ", CurIns->bytes[j]);
+		PLH::Tools::XTrace("%s %s\n", CurIns->mnemonic,CurIns->op_str);
 
 		for (int j = 0; j < x86->op_count; j++)
 		{
@@ -178,23 +167,23 @@ void PLH::AbstractDetour::RelocateASM(BYTE* Code, DWORD* CodeSize, DWORD64 From,
 		}
 	}
 
-	XTrace("\nFixed Trampoline\n");
+	PLH::Tools::XTrace("\nFixed Trampoline\n");
 	InstructionCount = cs_disasm(m_CapstoneHandle, Code, *CodeSize, (uint64_t)Code, 0, &InstructionInfo);
 	for (int i = 0; i < InstructionCount; i++)
 	{
 		cs_insn* CurIns = (cs_insn*)&InstructionInfo[i];
 
-		XTrace("%I64X: ", CurIns->address);
+		PLH::Tools::XTrace("%I64X: ", CurIns->address);
 		for (int j = 0; j < CurIns->size; j++)
-			XTrace("%02X ", CurIns->bytes[j]);
-		XTrace("%s %s\n", CurIns->mnemonic, CurIns->op_str);
+			PLH::Tools::XTrace("%02X ", CurIns->bytes[j]);
+		PLH::Tools::XTrace("%s %s\n", CurIns->mnemonic, CurIns->op_str);
 	}
 	cs_free(InstructionInfo, InstructionCount);
 }
 
 void PLH::AbstractDetour::_Relocate(cs_insn* CurIns, DWORD64 From, DWORD64 To, const uint8_t DispSize, const uint8_t DispOffset)
 {
-	XTrace("Relocating...\n");
+	PLH::Tools::XTrace("Relocating...\n");
 
 	ASMHelper::DISP DispType = m_ASMInfo.GetDisplacementType(DispSize);
 	if (DispType == ASMHelper::DISP::D_INT8)
@@ -225,7 +214,7 @@ void PLH::AbstractDetour::FlushSrcInsCache()
 void PLH::AbstractDetour::Initialize(cs_mode Mode)
 {
 	if (cs_open(CS_ARCH_X86, Mode, &m_CapstoneHandle) != CS_ERR_OK)
-		XTrace("Error Initializing Capstone x86\n");
+		PLH::Tools::XTrace("Error Initializing Capstone x86\n");
 
 	cs_option(m_CapstoneHandle, CS_OPT_DETAIL, CS_OPT_ON);
 }
@@ -292,7 +281,7 @@ bool PLH::X86Detour::Hook()
 	m_OriginalLength = m_hkLength;
 	if (m_hkLength == 0)
 	{
-		XTrace("Function to small to hook\n");
+		PLH::Tools::XTrace("Function to small to hook\n");
 		return false;
 	}
 
@@ -752,14 +741,14 @@ bool PLH::IATHook::FindIATFunc(const char* LibraryName,const char* FuncName, PIM
 		{
 			if (IMAGE_SNAP_BY_ORDINAL(pOriginalThunk->u1.Ordinal))
 			{
-				XTrace("Import By Ordinal:[Ordinal:%d]\n",IMAGE_ORDINAL(pOriginalThunk->u1.Ordinal));
+				PLH::Tools::XTrace("Import By Ordinal:[Ordinal:%d]\n",IMAGE_ORDINAL(pOriginalThunk->u1.Ordinal));
 				continue;
 			}
 
 			PIMAGE_IMPORT_BY_NAME pImport = (PIMAGE_IMPORT_BY_NAME)
 				ResolveRVA(hInst, pOriginalThunk->u1.AddressOfData);
 
-			XTrace("Import By Name: [Ordinal:%d] [Name:%s]\n", IMAGE_ORDINAL(pOriginalThunk->u1.Ordinal),pImport->Name);
+			PLH::Tools::XTrace("Import By Name: [Ordinal:%d] [Name:%s]\n", IMAGE_ORDINAL(pOriginalThunk->u1.Ordinal),pImport->Name);
 
 			//Check the name of API given by OriginalFirthThunk
 			if (_stricmp(FuncName, pImport->Name) != 0)

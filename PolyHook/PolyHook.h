@@ -11,10 +11,21 @@
 #include <TlHelp32.h>
 #pragma comment(lib,"Dbghelp.lib")
 #pragma comment(lib,"capstone.lib")
+#define PLH_SHOW_DEBUG_MESSAGES 1 //To print messages even in release
 
 namespace PLH {
 	namespace Tools
 	{
+		inline void XTrace(char* fmt, ...)
+		{
+			va_list args;
+			va_start(args, fmt);
+#if defined(_DEBUG) || defined(PLH_SHOW_DEBUG_MESSAGES)
+			vfprintf_s(stdout, fmt, args);
+#endif
+			va_end(args);
+		}
+
 		class ThreadHandle
 		{
 		public:
@@ -238,9 +249,9 @@ namespace PLH {
 			return To - (From + InsSize);
 		}
 		DWORD CalculateLength(BYTE* Src, DWORD NeededLength);
-		void RelocateASM(BYTE* Code, DWORD& CodeSize, DWORD64 From, DWORD64 To);
+		void RelocateASM(BYTE* Code, DWORD* CodeSize, DWORD64 From, DWORD64 To);
 		void _Relocate(cs_insn* CurIns, DWORD64 From, DWORD64 To, const uint8_t DispSize, const uint8_t DispOffset);
-		void RelocateConditionalJMP(cs_insn* CurIns, DWORD& CodeSize, DWORD64 From, DWORD64 To, const uint8_t DispSize, const uint8_t DispOffset);
+		void RelocateConditionalJMP(cs_insn* CurIns, DWORD* CodeSize, DWORD64 From, DWORD64 To, const uint8_t DispSize, const uint8_t DispOffset);
 		virtual x86_reg GetIpReg() = 0;
 		virtual void FreeTrampoline() = 0;
 		virtual void WriteJMP(DWORD_PTR From, DWORD_PTR To) = 0;

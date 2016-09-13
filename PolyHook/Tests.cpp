@@ -1,10 +1,9 @@
 // PolyHook.cpp : Defines the entry point for the console application.
 //
 #include <tchar.h>
-#include "PolyHook.h"
 #define CATCH_CONFIG_MAIN
+#include "PolyHook.h"
 #include "CatchUnitTest.h"
-#define PLH_SHOW_DEBUG_MESSAGES 1 //To print messages even in release
 
 decltype(&MessageBoxA) oMessageBoxA;
 int WINAPI hkMessageBoxA(HWND hWnd, LPCSTR lpText, LPCSTR lpCaption, UINT uType)
@@ -94,7 +93,6 @@ TEST_CASE("Hooks GetCommandLine", "[Detours]")
 	REQUIRE(Detour_Ex->GetLastError().GetSeverity() != PLH::RuntimeError::Severity::Critical);
 }
 /////////////////////////////////////////////////////////////////////////////////////////////////
-
 
 typedef DWORD(__stdcall* tGetCurrentThreadId)();
 tGetCurrentThreadId oGetCurrentThreadID;

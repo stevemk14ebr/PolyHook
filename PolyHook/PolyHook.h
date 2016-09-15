@@ -85,21 +85,18 @@ namespace PLH {
 			{
 				m_SuspendedThreads.clear();
 				HANDLE h = CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0);
-				if (h != INVALID_HANDLE_VALUE)
+				if (h == INVALID_HANDLE_VALUE)
 					return;
 
 				THREADENTRY32 te;
 				te.dwSize = sizeof(te);
-				for (Thread32First(h, &te); Thread32Next(h, &te); )
+				for (Thread32First(h, &te), te.dwSize = sizeof(te); Thread32Next(h, &te); )
 				{
-					if (te.dwSize >= FIELD_OFFSET(THREADENTRY32, th32OwnerProcessID) + sizeof(te.th32OwnerProcessID))
-					{
-						if (te.th32ThreadID != CallingThreadId && te.th32OwnerProcessID == GetCurrentProcessId())
-						{
-							m_SuspendedThreads.emplace_back(te.th32ThreadID, THREAD_SUSPEND_RESUME);
-						}
-					}
-					te.dwSize = sizeof(te);
+					if (te.dwSize < FIELD_OFFSET(THREADENTRY32, th32OwnerProcessID) + sizeof(te.th32OwnerProcessID))
+						continue;
+					
+					if (te.th32ThreadID != CallingThreadId && te.th32OwnerProcessID == GetCurrentProcessId())
+						m_SuspendedThreads.emplace_back(te.th32ThreadID, THREAD_SUSPEND_RESUME);
 				}
 				CloseHandle(h);
 			}

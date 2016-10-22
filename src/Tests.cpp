@@ -2,8 +2,8 @@
 //
 #include <tchar.h>
 #define CATCH_CONFIG_MAIN
-#include "PolyHook.h"
-#include "CatchUnitTest.h"
+#include <PolyHook.hpp>
+#include <CatchUnitTest.h>
 
 decltype(&MessageBoxA) oMessageBoxA;
 int WINAPI hkMessageBoxA(HWND hWnd, LPCSTR lpText, LPCSTR lpCaption, UINT uType)

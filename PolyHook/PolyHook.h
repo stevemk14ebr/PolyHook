@@ -53,7 +53,7 @@ namespace PLH {
 				if (m_IsSuspended)
 					ToggleSuspend(false);
 
-				if (!m_hThread)
+				if (m_hThread)
 					CloseHandle(m_hThread);
 			}
 		private:

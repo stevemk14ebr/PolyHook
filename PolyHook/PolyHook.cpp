@@ -1,4 +1,5 @@
 #include "PolyHook.h"
+
 PLH::RuntimeError::RuntimeError()
 {
 	m_Message = "";
@@ -395,20 +396,15 @@ PLH::HookType PLH::X64Detour::GetType()
 bool PLH::X64Detour::Hook()
 {
 	//Allocate Memory as close as possible to src, to minimize chance 32bit displacements will be out of range (for relative jmp type)
-	MEMORY_BASIC_INFORMATION mbi;
-	for (size_t Addr = (size_t)m_hkSrc; Addr > (size_t)m_hkSrc - 0x80000000; Addr = (size_t)mbi.BaseAddress - 1)
+	size_t AllocDelta = 0;
+	m_Trampoline = (BYTE*)Tools::AllocateWithin2GB(m_hkSrc, 0x1000, AllocDelta);
+	if (m_Trampoline == nullptr)
 	{
-		if (!VirtualQuery((LPCVOID)Addr, &mbi, sizeof(mbi)))
-			break;
-
-		if (mbi.State != MEM_FREE)
-			continue;
-
-		if (m_Trampoline = (BYTE*)VirtualAlloc(mbi.BaseAddress, 0x1000, MEM_RESERVE | MEM_COMMIT, PAGE_EXECUTE_READWRITE))
-			break;
+		PostError(RuntimeError(RuntimeError::Severity::Critical, "PolyHook x64Detour: Could not allocate within +-2GB...Falling Back to any location"));
+		m_Trampoline = (BYTE*)VirtualAlloc(0, 0x1000, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
+		if(m_Trampoline == nullptr)
+			return false;
 	}
-	if (!m_Trampoline)
-		return false;
 	m_NeedFree = true;
 
 	//Decide which jmp type to use based on function size

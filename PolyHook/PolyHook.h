@@ -102,6 +102,75 @@ namespace PLH {
 			}
 			std::vector<Tools::ThreadHandle> m_SuspendedThreads;
 		};
+
+		inline void* Allocate_Up_2GB(BYTE* pStart,size_t Size)
+		{
+			//Start at pStart, search 2GB above it
+			MEMORY_BASIC_INFORMATION mbi;
+			for (size_t Addr = (size_t)pStart; Addr < (size_t)pStart + 0x80000000; Addr = (size_t)mbi.BaseAddress + mbi.RegionSize)
+			{
+				if (!VirtualQuery((LPCVOID)Addr, &mbi, sizeof(mbi)))
+					break;
+
+				if (mbi.State != MEM_FREE)
+					continue;
+
+				//VirtualAlloc requires 64k aligned addresses
+				void* PageBase = (BYTE*)mbi.BaseAddress - (PtrToUlong(mbi.BaseAddress) & 0xffff);
+				void* Allocated = nullptr;
+				Allocated = (BYTE*)VirtualAlloc(PageBase, Size, MEM_RESERVE | MEM_COMMIT, PAGE_EXECUTE_READWRITE);
+				if (Allocated != NULL)
+					return Allocated;
+				else
+					continue; //Allocation commonly fails due to requesting too large of a size, just search for bigger region
+			}
+			return nullptr;
+		}
+
+		inline void* Allocate_Down_2GB(BYTE* pStart, size_t Size)
+		{
+			//Start at pStart, search 2GB below
+			MEMORY_BASIC_INFORMATION mbi;
+			for (size_t Addr = (size_t)pStart; Addr > (size_t)pStart - 0x80000000; Addr = (size_t)mbi.BaseAddress - 1) //TODO: Figure out max amount we can jump, currently do -1 to not skip any ranges
+			{
+				if (!VirtualQuery((LPCVOID)Addr, &mbi, sizeof(mbi)))
+					break;
+
+				if (mbi.State != MEM_FREE)
+					continue;
+
+				//VirtualAlloc requires 64k aligned addresses
+				void* PageBase = (BYTE*)mbi.BaseAddress - (PtrToUlong(mbi.BaseAddress) & 0xffff);
+				void* Allocated = nullptr;
+				Allocated = (BYTE*)VirtualAlloc(PageBase, Size, MEM_RESERVE | MEM_COMMIT, PAGE_EXECUTE_READWRITE);
+				if (Allocated != NULL)
+					return Allocated;
+				else
+					continue; //Allocation commonly fails due to requesting too large of a size, just search for bigger region
+			}
+			return nullptr;
+		}
+
+		inline void* AllocateWithin2GB(BYTE* pStart, size_t Size, size_t& AllocationDelta)
+		{
+			//Attempt to allocate +-2GB from pStart
+			AllocationDelta = 0;
+			void* Allocated = nullptr;
+			Allocated = Tools::Allocate_Down_2GB(pStart, Size);
+			if (Allocated == nullptr)
+				Allocated = Tools::Allocate_Up_2GB(pStart, Size);
+
+			//Sanity check the delta is less than 2GB
+			if (Allocated != nullptr)
+				AllocationDelta = std::abs(pStart - Allocated);
+
+			if (Allocated == nullptr || AllocationDelta > 0x80000000)
+			{
+				XTrace("[PolyHook] Could not allocate within 2GB\n");
+				return nullptr;
+			}
+			return Allocated;
+		}
 	}
 
 	class ASMHelper

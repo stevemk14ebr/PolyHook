@@ -139,31 +139,26 @@ namespace PLH {
 			std::vector<Tools::ThreadHandle> m_SuspendedThreads;
 		};
 
-		inline void* Allocate_Up_2GB(BYTE* pStart,size_t Size)
+		inline void* Allocate_2GB_IMPL(BYTE* pStart,size_t Size,long long int Delta)
 		{
-			//Start at pStart, search 2GB above it
+			//These lambda's let us use a for loops for both the forward and backward loops
+			auto Incrementor = [&](MEMORY_BASIC_INFORMATION mbi) -> size_t{
+				if (Delta > 0)
+					return (size_t)mbi.BaseAddress + mbi.RegionSize;
+				else
+					return (size_t)mbi.BaseAddress - 1; //TO-DO can likely jump much more than 1 byte, figure out what the max is
+			};
+
+			auto Comparator = [&](size_t Addr, size_t End)->bool {
+				if (Delta > 0)
+					return Addr < End;
+				else
+					return Addr > End;
+			};
+
+			//Start at pStart, search 2GB around it (up/down depending on Delta)
 			MEMORY_BASIC_INFORMATION mbi;
-			for (size_t Addr = (size_t)pStart; Addr < (size_t)pStart + 0x80000000; Addr = (size_t)mbi.BaseAddress + mbi.RegionSize)
-			{
-				if (!VirtualQuery((LPCVOID)Addr, &mbi, sizeof(mbi)))
-					break;
-
-				if (mbi.State != MEM_FREE)
-					continue;
-
-				//VirtualAlloc requires 64k aligned addresses
-				void* PageBase = (BYTE*)mbi.BaseAddress - (PtrToUlong(mbi.BaseAddress) & 0xffff);
-				if (void* Allocated = (BYTE*)VirtualAlloc(PageBase, Size, MEM_RESERVE | MEM_COMMIT, PAGE_EXECUTE_READWRITE))
-					return Allocated;
-			}
-			return nullptr;
-		}
-
-		inline void* Allocate_Down_2GB(BYTE* pStart, size_t Size)
-		{
-			//Start at pStart, search 2GB below
-			MEMORY_BASIC_INFORMATION mbi;
-			for (size_t Addr = (size_t)pStart; Addr > (size_t)pStart - 0x80000000; Addr = (size_t)mbi.BaseAddress - 1) //TODO: Figure out max amount we can jump, currently do -1 to not skip any ranges
+			for (size_t Addr = (size_t)pStart; Comparator(Addr, (size_t)pStart + Delta); Addr = Incrementor(mbi))
 			{
 				if (!VirtualQuery((LPCVOID)Addr, &mbi, sizeof(mbi)))
 					break;
@@ -184,9 +179,9 @@ namespace PLH {
 			//Attempt to allocate +-2GB from pStart
 			AllocationDelta = 0;
 			void* Allocated = nullptr;
-			Allocated = Tools::Allocate_Down_2GB(pStart, Size);
+			Allocated = Tools::Allocate_2GB_IMPL(pStart, Size, 0xFFFFFFFF80000000); //Search down first (-2GB)
 			if (Allocated == nullptr)
-				Allocated = Tools::Allocate_Up_2GB(pStart, Size);
+				Allocated = Tools::Allocate_2GB_IMPL(pStart, Size,0x80000000); //Search up (+2GB)
 
 			//Sanity check the delta is less than 2GB
 			if (Allocated != nullptr)

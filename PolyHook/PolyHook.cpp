@@ -404,6 +404,11 @@ bool PLH::X64Detour::Hook()
 		m_Trampoline = (BYTE*)VirtualAlloc(0, 0x1000, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
 		if(m_Trampoline == nullptr)
 			return false;
+	}else{
+		//Just some debug output
+		double DeltaInGB = AllocDelta / 1000000000.0; //How far was our trampoline allocated from the target, in GB
+		double DeltaPercentage = DeltaInGB / .5 * 100.0; //Allowed range is +-2GB, see in percentage how close to tolerance we were
+		PLH::Tools::XTrace("PolyHook x64Detour: Allocation within +-2GB Succeeded Delta:[%f GB] Percent Tolerance Used[%f %% out of 2GB]\n", DeltaInGB,DeltaPercentage);
 	}
 	m_NeedFree = true;
 

@@ -421,7 +421,7 @@ bool PLH::X64Detour::Hook()
 			return false;
 		}
 	}
-	//TODO: Add single step support in case processes RIP is on/in the section we write to
+	//TO-DO: Add single step support in case processes RIP is on/in the section we write to
 	Tools::ThreadManager ThreadMngr;
 	ThreadMngr.SuspendThreads();
 
@@ -451,6 +451,7 @@ bool PLH::X64Detour::Hook()
 	for (int i = HookSize; i < m_OriginalLength; i++)
 		m_hkSrc[i] = 0x90;
 
+	//Done hooking, resume threads and flush cache (cache flush is usually just a no-op)
 	ThreadMngr.ResumeThreads();
 	FlushInstructionCache(GetCurrentProcess(), m_hkSrc, m_hkLength);
 	m_Hooked = true;
@@ -698,9 +699,10 @@ void PLH::IATHook::SetupHook(const char* LibraryName,const char* SrcFunc, BYTE* 
 bool PLH::IATHook::FindIATFunc(const char* LibraryName,const char* FuncName, PIMAGE_THUNK_DATA* pFuncThunkOut,const char* Module)
 {
 	bool UseModuleName = true;
-	if (Module == NULL || Module[0] == '\0')
+	if (Module == NULL || Module[0] == '\0') //we received a null module
 		UseModuleName = false;
 
+	//Use the module given to us, otherwise use our process base (NULL)
 	HINSTANCE hInst = GetModuleHandleA(UseModuleName ? Module:NULL);
 	if (!hInst)
 	{
@@ -708,12 +710,14 @@ bool PLH::IATHook::FindIATFunc(const char* LibraryName,const char* FuncName, PIM
 		return false;
 	}
 
+	//Get import name table
 	ULONG Sz;
 	PIMAGE_IMPORT_DESCRIPTOR pImports = (PIMAGE_IMPORT_DESCRIPTOR)
 		ImageDirectoryEntryToDataEx(hInst, TRUE, IMAGE_DIRECTORY_ENTRY_IMPORT, &Sz, nullptr);
 
 	for (int i = 0; pImports[i].Characteristics != 0; i++)
 	{
+		//Check if we have the correct library (ex: kernel32.dll)
 		char* _ModuleName = (char*)ResolveRVA(hInst, pImports[i].Name);
 		if (_stricmp(_ModuleName, LibraryName) != 0)
 			continue;
@@ -746,12 +750,12 @@ bool PLH::IATHook::FindIATFunc(const char* LibraryName,const char* FuncName, PIM
 
 			PLH::Tools::XTrace("Import By Name: [Ordinal:%d] [Name:%s]\n", IMAGE_ORDINAL(pOriginalThunk->u1.Ordinal),pImport->Name);
 
-			//Check the name of API given by OriginalFirthThunk
+			//Check the name of API given by OriginalFirthThunk (Ex: CreateThread)
 			if (_stricmp(FuncName, pImport->Name) != 0)
 				continue;
 			
 			/*Name matched in OriginalFirstThunk, return FirstThunk
-			so we can changed it's address*/
+			so we can changed it's address later*/
 			*pFuncThunkOut = pThunk;
 			return true;
 		}

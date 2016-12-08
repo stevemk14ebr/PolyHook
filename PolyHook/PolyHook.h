@@ -153,12 +153,8 @@ namespace PLH {
 
 				//VirtualAlloc requires 64k aligned addresses
 				void* PageBase = (BYTE*)mbi.BaseAddress - (PtrToUlong(mbi.BaseAddress) & 0xffff);
-				void* Allocated = nullptr;
-				Allocated = (BYTE*)VirtualAlloc(PageBase, Size, MEM_RESERVE | MEM_COMMIT, PAGE_EXECUTE_READWRITE);
-				if (Allocated != NULL)
+				if (void* Allocated = (BYTE*)VirtualAlloc(PageBase, Size, MEM_RESERVE | MEM_COMMIT, PAGE_EXECUTE_READWRITE))
 					return Allocated;
-				else
-					continue; //Allocation commonly fails due to requesting too large of a size, just search for bigger region
 			}
 			return nullptr;
 		}
@@ -177,12 +173,8 @@ namespace PLH {
 
 				//VirtualAlloc requires 64k aligned addresses
 				void* PageBase = (BYTE*)mbi.BaseAddress - (PtrToUlong(mbi.BaseAddress) & 0xffff);
-				void* Allocated = nullptr;
-				Allocated = (BYTE*)VirtualAlloc(PageBase, Size, MEM_RESERVE | MEM_COMMIT, PAGE_EXECUTE_READWRITE);
-				if (Allocated != NULL)
+				if (void* Allocated = (BYTE*)VirtualAlloc(PageBase, Size, MEM_RESERVE | MEM_COMMIT, PAGE_EXECUTE_READWRITE))
 					return Allocated;
-				else
-					continue; //Allocation commonly fails due to requesting too large of a size, just search for bigger region
 			}
 			return nullptr;
 		}
@@ -201,10 +193,7 @@ namespace PLH {
 				AllocationDelta = std::abs(pStart - Allocated);
 
 			if (Allocated == nullptr || AllocationDelta > 0x80000000)
-			{
-				XTrace("[PolyHook] Could not allocate within 2GB\n");
 				return nullptr;
-			}
 			return Allocated;
 		}
 	}

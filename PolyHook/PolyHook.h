@@ -33,7 +33,39 @@ namespace PLH {
 			ThreadHandle(DWORD ThreadId, DWORD  DesiredAccessFlags) : m_ThreadId(ThreadId), m_IsSuspended(false)
 			{
 				m_hThread = OpenThread(DesiredAccessFlags, FALSE, ThreadId);
+				if(m_hThread == NULL)
+					throw "PolyHook: Failed to open thread in class ThreadHandle";
 			}
+
+			//Only allow once instance to control a handle
+			ThreadHandle(const ThreadHandle& other) = delete; //copy
+			ThreadHandle& operator=(const ThreadHandle& other) = delete; //copy assignment
+
+			//Move
+			ThreadHandle(ThreadHandle &&other) noexcept
+				: m_IsSuspended(other.m_IsSuspended)
+				, m_hThread(other.m_hThread)
+				, m_ThreadId(other.m_ThreadId)
+			{
+				other.m_hThread = nullptr;
+				other.m_IsSuspended = false;
+			}
+
+			//Move assignment
+			ThreadHandle& operator=(ThreadHandle &&other) noexcept
+			{
+				if (this != &other)
+				{
+					m_IsSuspended = other.m_IsSuspended;
+					m_hThread = other.m_hThread;
+					m_ThreadId = other.m_ThreadId;
+
+					other.m_hThread = nullptr;
+					other.m_IsSuspended = false;
+				}
+				return *this;
+			}
+
 
 			//false resumes, true suspends
 			void ToggleSuspend(bool Suspend)
@@ -53,7 +85,7 @@ namespace PLH {
 				if (m_IsSuspended)
 					ToggleSuspend(false);
 
-				if (!m_hThread)
+				if (m_hThread)
 					CloseHandle(m_hThread);
 			}
 		private:
@@ -73,6 +105,7 @@ namespace PLH {
 					ThreadInstance.ToggleSuspend(true);
 				}
 			}
+
 			void ResumeThreads()
 			{
 				for (ThreadHandle& ThreadInstance : m_SuspendedThreads)
@@ -90,9 +123,12 @@ namespace PLH {
 
 				THREADENTRY32 te;
 				te.dwSize = sizeof(te);
-				for (Thread32First(h, &te), te.dwSize = sizeof(te); Thread32Next(h, &te); )
+				BOOL Result = FALSE;
+				//Loop threads
+				for (Result = Thread32First(h, &te), te.dwSize = sizeof(te); Result == TRUE && Thread32Next(h, &te); )
 				{
-					if (te.dwSize < FIELD_OFFSET(THREADENTRY32, th32OwnerProcessID) + sizeof(te.th32OwnerProcessID))
+					//Verify size field was set properly
+					if (te.dwSize < RTL_SIZEOF_THROUGH_FIELD(THREADENTRY32, th32OwnerProcessID))
 						continue;
 					
 					if (te.th32ThreadID != CallingThreadId && te.th32OwnerProcessID == GetCurrentProcessId())

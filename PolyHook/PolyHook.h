@@ -139,17 +139,20 @@ namespace PLH {
 			std::vector<Tools::ThreadHandle> m_SuspendedThreads;
 		};
 
-		inline void* Allocate_2GB_IMPL(BYTE* pStart,size_t Size,long long int Delta)
+		inline void* Allocate_2GB_IMPL(uint8_t* pStart,size_t Size,int_fast64_t Delta)
 		{
-			//These lambda's let us use a for loops for both the forward and backward loops
-			auto Incrementor = [&](MEMORY_BASIC_INFORMATION mbi) -> size_t{
+			/*These lambda's let us use a single for loop for both the forward and backward loop conditions.
+			I passed delta variable as a parameter instead of capturing it because it is faster, it allows
+			the compiler to optimize the lambda into a function pointer rather than constructing
+			an anonymous class and incur the extra overhead that involves (negligible overhead but why not optimize)*/
+			auto Incrementor = [](int_fast64_t Delta,MEMORY_BASIC_INFORMATION mbi) -> uintptr_t{
 				if (Delta > 0)
-					return (size_t)mbi.BaseAddress + mbi.RegionSize;
+					return (uintptr_t)mbi.BaseAddress + mbi.RegionSize;
 				else
-					return (size_t)mbi.BaseAddress - 1; //TO-DO can likely jump much more than 1 byte, figure out what the max is
+					return (uintptr_t)mbi.BaseAddress - 1; //TO-DO can likely jump much more than 1 byte, figure out what the max is
 			};
 
-			auto Comparator = [&](size_t Addr, size_t End)->bool {
+			auto Comparator = [](long long int Delta,uintptr_t Addr, uintptr_t End)->bool {
 				if (Delta > 0)
 					return Addr < End;
 				else
@@ -158,7 +161,7 @@ namespace PLH {
 
 			//Start at pStart, search 2GB around it (up/down depending on Delta)
 			MEMORY_BASIC_INFORMATION mbi;
-			for (size_t Addr = (size_t)pStart; Comparator(Addr, (size_t)pStart + Delta); Addr = Incrementor(mbi))
+			for (uintptr_t Addr = (uintptr_t)pStart; Comparator(Delta,Addr, (uintptr_t)pStart + Delta); Addr = Incrementor(Delta,mbi))
 			{
 				if (!VirtualQuery((LPCVOID)Addr, &mbi, sizeof(mbi)))
 					break;
@@ -167,28 +170,35 @@ namespace PLH {
 					continue;
 
 				//VirtualAlloc requires 64k aligned addresses
-				void* PageBase = (BYTE*)mbi.BaseAddress - (PtrToUlong(mbi.BaseAddress) & 0xffff);
-				if (void* Allocated = (BYTE*)VirtualAlloc(PageBase, Size, MEM_RESERVE | MEM_COMMIT, PAGE_EXECUTE_READWRITE))
+				void* PageBase = (uint8_t*)mbi.BaseAddress - (PtrToUlong(mbi.BaseAddress) & 0xffff);
+				if (void* Allocated = (uint8_t*)VirtualAlloc(PageBase, Size, MEM_RESERVE | MEM_COMMIT, PAGE_EXECUTE_READWRITE))
 					return Allocated;
 			}
 			return nullptr;
 		}
 
-		inline void* AllocateWithin2GB(BYTE* pStart, size_t Size, size_t& AllocationDelta)
+		inline void* AllocateWithin2GB(uint8_t* pStart, size_t Size, size_t& AllocationDelta)
 		{
 			//Attempt to allocate +-2GB from pStart
 			AllocationDelta = 0;
 			void* Allocated = nullptr;
-			Allocated = Tools::Allocate_2GB_IMPL(pStart, Size, 0xFFFFFFFF80000000); //Search down first (-2GB)
+			Allocated = Tools::Allocate_2GB_IMPL(pStart, Size, 0xFFFFFFFF80000000); //Search down first (-2GB) (~0x80000000+1)
+
+			//If search down found nothing
 			if (Allocated == nullptr)
 				Allocated = Tools::Allocate_2GB_IMPL(pStart, Size,0x80000000); //Search up (+2GB)
 
 			//Sanity check the delta is less than 2GB
 			if (Allocated != nullptr)
+			{
 				AllocationDelta = std::abs(pStart - Allocated);
-
-			if (Allocated == nullptr || AllocationDelta > 0x80000000)
-				return nullptr;
+				if (AllocationDelta > 0x80000000)
+				{
+					//Out of range, free then return
+					VirtualFree(Allocated, 0, MEM_RELEASE);
+					return nullptr;
+				}
+			}
 			return Allocated;
 		}
 	}
@@ -220,7 +230,7 @@ namespace PLH {
 				return DISP::D_INVALID;
 			}
 		}
-		bool IsConditionalJump(const BYTE* bytes,const uint16_t Size)
+		bool IsConditionalJump(const uint8_t* bytes,const uint16_t Size)
 		{
 			//http://unixwiz.net/techtips/x86-jumps.html
 			if (Size < 1)
@@ -242,7 +252,7 @@ namespace PLH {
 		}
 
 		template<typename T>
-		T GetDisplacement(BYTE* Instruction, const uint32_t Offset)
+		T GetDisplacement(uint8_t* Instruction, const uint32_t Offset)
 		{
 			T Disp;
 			memset(&Disp, 0x00, sizeof(T));
@@ -315,9 +325,9 @@ namespace PLH {
 		template<typename T>
 		void SetupHook(T* Src, T* Dest)
 		{
-			SetupHook((BYTE*)Src, (BYTE*)Dest);
+			SetupHook((uint8_t*)Src, (uint8_t*)Dest);
 		}
-		void SetupHook(BYTE* Src, BYTE* Dest);
+		void SetupHook(uint8_t* Src, uint8_t* Dest);
 
 		virtual void UnHook() override;
 
@@ -328,33 +338,33 @@ namespace PLH {
 		}
 	protected:
 		template<typename T>
-		T CalculateRelativeDisplacement(DWORD64 From, DWORD64 To, DWORD InsSize)
+		T CalculateRelativeDisplacement(uintptr_t From,uintptr_t To, uint_fast32_t InsSize)
 		{
 			if (To < From)
 				return 0 - (From - To) - InsSize;
 			return To - (From + InsSize);
 		}
-		DWORD CalculateLength(BYTE* Src, DWORD NeededLength);
-		void RelocateASM(BYTE* Code, DWORD* CodeSize, DWORD64 From, DWORD64 To);
-		void _Relocate(cs_insn* CurIns, DWORD64 From, DWORD64 To, const uint8_t DispSize, const uint8_t DispOffset);
-		void RelocateConditionalJMP(cs_insn* CurIns, DWORD* CodeSize, DWORD64 From, DWORD64 To, const uint8_t DispSize, const uint8_t DispOffset);
+		uint_fast32_t CalculateLength(uint8_t* Src, uint_fast32_t NeededLength);
+		void RelocateASM(uint8_t* Code, uint_fast32_t* CodeSize, const uintptr_t From, const uintptr_t To);
+		void _Relocate(cs_insn* CurIns, const uintptr_t From, const uintptr_t To, const uint8_t DispSize, const uint8_t DispOffset);
+		void RelocateConditionalJMP(cs_insn* CurIns, uint_fast32_t* CodeSize, const uintptr_t From, const uintptr_t To, const uint8_t DispSize, const uint8_t DispOffset);
 		virtual x86_reg GetIpReg() = 0;
 		virtual void FreeTrampoline() = 0;
-		virtual void WriteJMP(DWORD_PTR From, DWORD_PTR To) = 0;
+		virtual void WriteJMP(uintptr_t From, uintptr_t To) = 0;
 		virtual int GetJMPSize() = 0;
 		void FlushSrcInsCache();
 		void Initialize(cs_mode Mode);
 		csh m_CapstoneHandle;
 		ASMHelper m_ASMInfo;
 
-		BYTE m_OriginalCode[64];
-		DWORD m_OriginalLength;
-		BYTE* m_Trampoline;
+		uint8_t m_OriginalCode[64];
+		uint_fast32_t m_OriginalLength;
+		uint8_t* m_Trampoline;
 		bool m_NeedFree;
 		bool m_Hooked;
-		BYTE* m_hkSrc;
-		BYTE* m_hkDest;
-		DWORD m_hkLength;
+		uint8_t* m_hkSrc;
+		uint8_t* m_hkDest;
+		uint_fast32_t m_hkLength;
 		cs_mode m_CapMode;
 	};
 
@@ -377,11 +387,11 @@ namespace PLH {
 	protected:
 		virtual x86_reg GetIpReg() override;
 		virtual void FreeTrampoline();
-		virtual void WriteJMP(DWORD_PTR From, DWORD_PTR To);
+		virtual void WriteJMP(uintptr_t From, uintptr_t To);
 		virtual int GetJMPSize();
 	private:
-		void WriteRelativeJMP(DWORD Destination, DWORD JMPDestination);
-		void WriteAbsoluteJMP(DWORD Destination, DWORD JMPDestination);
+		void WriteRelativeJMP(uintptr_t Destination, uintptr_t JMPDestination);
+		void WriteAbsoluteJMP(uintptr_t Destination, uintptr_t JMPDestination);
 	};
 #else
 #define Detour X64Detour
@@ -403,10 +413,10 @@ namespace PLH {
 	protected:
 		virtual x86_reg GetIpReg() override;
 		virtual void FreeTrampoline() override;
-		virtual void WriteJMP(DWORD_PTR From, DWORD_PTR To) override;
+		virtual void WriteJMP(const uintptr_t From,const uintptr_t To) override;
 		virtual int GetJMPSize() override;
 	private:
-		void WriteAbsoluteJMP(DWORD64 Destination, DWORD64 JMPDestination);
+		void WriteAbsoluteJMP(const uintptr_t Destination,const uintptr_t JMPDestination);
 	};
 #endif //END _WIN64 IFDEF
 
@@ -425,17 +435,17 @@ namespace PLH {
 		virtual void UnHook() override;
 		virtual HookType GetType() override;
 
-		void SetupHook(BYTE** Vtable, const int Index, BYTE* Dest);
+		void SetupHook(uint8_t** Vtable, const uint_fast16_t Index, uint8_t* Dest);
 		template<typename T>
 		T GetOriginal()
 		{
 			return (T)m_OrigVFunc;
 		}
 	private:
-		BYTE** m_hkVtable;
-		BYTE* m_hkDest;
-		BYTE* m_OrigVFunc;
-		int m_hkIndex;
+		uint8_t** m_hkVtable;
+		uint8_t* m_hkDest;
+		uint8_t* m_OrigVFunc;
+		uint_fast16_t m_hkIndex;
 		bool m_Hooked;
 	};
 
@@ -454,7 +464,7 @@ namespace PLH {
 		virtual void UnHook() override;
 		virtual HookType GetType() override;
 
-		void SetupHook(BYTE** Vtable, const int Index, BYTE* Dest);
+		void SetupHook(uint8_t** Vtable, const uint_fast16_t Index, uint8_t* Dest);
 		template<typename T>
 		T GetOriginal()
 		{
@@ -469,13 +479,13 @@ namespace PLH {
 		detour object above handles the unhook on destruction by itself*/
 	};
 
-	//Credit to Dogmatt for IsValidPtr
+	//Credit to Dogmatt on unknowncheats.me for IsValidPtr
 #ifdef _WIN64
-#define _PTR_MAX_VALUE ((PVOID)0x000F000000000000)
+#define _PTR_MAX_VALUE ((void*)0x000F000000000000)
 #else
-#define _PTR_MAX_VALUE ((PVOID)0xFFF00000)
+#define _PTR_MAX_VALUE ((void*)0xFFF00000)
 #endif
-	__forceinline bool IsValidPtr(PVOID p) { return (p >= (PVOID)0x10000) && (p < _PTR_MAX_VALUE) && p != nullptr; }
+	__forceinline bool IsValidPtr(void* p) { return (p >= (void*)0x10000) && (p < _PTR_MAX_VALUE) && p != nullptr; }
 
 	class VTableSwap : public IHook
 	{
@@ -491,7 +501,7 @@ namespace PLH {
 		virtual HookType GetType() override;
 
 		template<typename T>
-		T HookAdditional(const int Index, BYTE* Dest)
+		T HookAdditional(const uint_fast16_t Index, uint8_t* Dest)
 		{
 			//The makes sure we called Hook first
 			if (!m_NeedFree)
@@ -501,27 +511,27 @@ namespace PLH {
 			return (T)m_OrigVtable[Index];
 		}
 		virtual void UnHook() override;
-		void SetupHook(BYTE* pClass, const int Index, BYTE* Dest);
+		void SetupHook(uint8_t* pClass, const uint_fast16_t Index, uint8_t* Dest);
 		template<typename T>
 		T GetOriginal()
 		{
 			return (T)m_hkOriginal;
 		}
 	private:
-		int GetVFuncCount(BYTE** pVtable);
+		uint_fast16_t GetVFuncCount(uint8_t** pVtable);
 		void FreeNewVtable();
-		BYTE** m_NewVtable;
-		BYTE** m_OrigVtable;
-		BYTE*** m_phkClass;
-		BYTE*  m_hkDest;
-		BYTE*  m_hkOriginal;
-		int    m_hkIndex;
-		int    m_VFuncCount;
+		uint8_t** m_NewVtable;
+		uint8_t** m_OrigVtable;
+		uint8_t*** m_phkClass;
+		uint8_t*  m_hkDest;
+		uint8_t*  m_hkOriginal;
+		uint_fast16_t    m_hkIndex;
+		uint_fast16_t    m_VFuncCount;
 		bool m_NeedFree;
 		bool m_Hooked;
 	};
 
-#define ResolveRVA(base,rva) (( (BYTE*)base) +rva)
+#define ResolveRVA(base,rva) (( (uint8_t*)base) +rva)
 	class IATHook:public IHook
 	{
 	public:
@@ -541,13 +551,13 @@ namespace PLH {
 		{
 			return (T)m_pIATFuncOrig;
 		}
-		void SetupHook(const char* LibraryName,const char* SrcFunc, BYTE* Dest,const char* Module = "");
+		void SetupHook(const char* LibraryName,const char* SrcFunc, uint8_t* Dest,const char* Module = "");
 	private:
 		bool FindIATFunc(const char* LibraryName,const char* FuncName,PIMAGE_THUNK_DATA* pFuncThunkOut,const char* Module = "");
 		std::string m_hkSrcFunc;
 		std::string m_hkLibraryName;
 		std::string m_hkModuleName;
-		BYTE* m_hkDest;
+		uint8_t* m_hkDest;
 		void* m_pIATFuncOrig;
 		bool m_Hooked;
 	};
@@ -611,11 +621,11 @@ namespace PLH {
 		{
 			return (T)m_ThisCtx.m_Src;
 		}
-		void SetupHook(BYTE* Src, BYTE* Dest,VEHMethod Method);
+		void SetupHook(uint8_t* Src, uint8_t* Dest, VEHMethod Method);
 
 		auto GetProtectionObject()
 		{
-				//Return an object to restore INT3_BP after callback is done
+			//Return an object to restore INT3_BP after callback is done
 			return finally([&]() {
 				if (m_ThisCtx.m_Type == VEHMethod::INT3_BP)
 				{
@@ -630,24 +640,26 @@ namespace PLH {
 	protected:
 		struct HookCtx {
 			VEHMethod m_Type;
-			BYTE* m_Src;
-			BYTE* m_Dest;
-			BYTE m_StorageByte; 
+			uint8_t* m_Src;
+			uint8_t* m_Dest;
+			uint8_t m_StorageByte;
 			/*Different methods store different things in this byte,
 			INT3_BP = hold the byte overwritten
 			HARDWARE_BP = the index of the debug register we used
 			GUARD_PAGE = unused*/
 
-			HookCtx(BYTE* Src, BYTE* Dest,VEHMethod Method)
+			HookCtx(uint8_t* Src, uint8_t* Dest, VEHMethod Method)
 			{
 				m_Dest = Dest;
 				m_Src = Src;
 				m_Type = Method;
 			}
+
 			HookCtx()
 			{
 				m_Type = VEHMethod::ERROR_TYPE;
 			}
+
 			friend bool operator==(const HookCtx& Ctx1, const HookCtx& Ctx2)
 			{
 				if (Ctx1.m_Dest == Ctx2.m_Dest && Ctx1.m_Src == Ctx2.m_Src && Ctx1.m_Type == Ctx2.m_Type)
@@ -656,7 +668,7 @@ namespace PLH {
 			}
 		};
 	private:
-		static bool AreInSamePage(BYTE* Addr1, BYTE* Addr2);
+		static bool AreInSamePage(const uint8_t* Addr1,const uint8_t* Addr2);
 		static LONG CALLBACK VEHHandler(EXCEPTION_POINTERS* ExceptionInfo);
 		static std::vector<HookCtx> m_HookTargets;
 		static std::mutex m_TargetMutex;

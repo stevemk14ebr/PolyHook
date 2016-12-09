@@ -72,7 +72,7 @@ PLH::AbstractDetour::~AbstractDetour()
 	cs_close(&m_CapstoneHandle);
 }
 
-void PLH::AbstractDetour::SetupHook(BYTE* Src, BYTE* Dest)
+void PLH::AbstractDetour::SetupHook(uint8_t* Src, uint8_t* Dest)
 {
 	m_hkSrc = Src;
 	m_hkDest = Dest;
@@ -87,17 +87,17 @@ void PLH::AbstractDetour::UnHook()
 	m_Hooked = false;
 }
 
-DWORD PLH::AbstractDetour::CalculateLength(BYTE* Src, DWORD NeededLength)
+uint_fast32_t PLH::AbstractDetour::CalculateLength(uint8_t* Src, uint_fast32_t NeededLength)
 {
 	//Grab First 100 bytes of function, disasm until invalid instruction
 	cs_insn* InstructionInfo;
-	size_t InstructionCount = cs_disasm(m_CapstoneHandle, Src, 0x100, (uint64_t)Src, 0, &InstructionInfo);
+	size_t InstructionCount = cs_disasm(m_CapstoneHandle, Src, 0x100, (uintptr_t)Src, 0, &InstructionInfo);
 
 	//Loop over instructions until we have at least NeededLength's Size
 	PLH::Tools::XTrace("\nORIGINAL:\n");
-	DWORD InstructionSize = 0;
+	uint_fast32_t InstructionSize = 0;
 	bool BigEnough = false;
-	for (int i = 0; i < InstructionCount && !BigEnough; i++)
+	for (uint_fast32_t i = 0; i < InstructionCount && !BigEnough; i++)
 	{
 		cs_insn* CurIns = (cs_insn*)&InstructionInfo[i];
 		InstructionSize += CurIns->size;
@@ -105,7 +105,7 @@ DWORD PLH::AbstractDetour::CalculateLength(BYTE* Src, DWORD NeededLength)
 			BigEnough = true;
 
 		PLH::Tools::XTrace("%I64X [%d]: ", CurIns->address, CurIns->size);
-		for (int j = 0; j < CurIns->size; j++)
+		for (uint_fast32_t j = 0; j < CurIns->size; j++)
 			PLH::Tools::XTrace("%02X ", CurIns->bytes[j]);
 		PLH::Tools::XTrace("%s %s\n", CurIns->mnemonic, CurIns->op_str);
 	}
@@ -116,23 +116,23 @@ DWORD PLH::AbstractDetour::CalculateLength(BYTE* Src, DWORD NeededLength)
 	return InstructionSize;
 }
 
-void PLH::AbstractDetour::RelocateASM(BYTE* Code, DWORD* CodeSize, DWORD64 From, DWORD64 To)
+void PLH::AbstractDetour::RelocateASM(uint8_t* Code, uint_fast32_t* CodeSize,const uintptr_t From,const uintptr_t To)
 {
 	cs_insn* InstructionInfo;
-	size_t InstructionCount = cs_disasm(m_CapstoneHandle, Code, *CodeSize, (uint64_t)Code, 0, &InstructionInfo);
+	size_t InstructionCount = cs_disasm(m_CapstoneHandle, Code, *CodeSize, (uintptr_t)Code, 0, &InstructionInfo);
 
 	PLH::Tools::XTrace("\nTrampoline:\n");
-	for (int i = 0; i < InstructionCount; i++)
+	for (uint_fast32_t i = 0; i < InstructionCount; i++)
 	{
 		cs_insn* CurIns = (cs_insn*)&InstructionInfo[i];
 		cs_x86* x86 = &(CurIns->detail->x86);
 
 		PLH::Tools::XTrace("%I64X: ", CurIns->address);
-		for (int j = 0; j < CurIns->size; j++)
+		for (uint_fast32_t j = 0; j < CurIns->size; j++)
 			PLH::Tools::XTrace("%02X ", CurIns->bytes[j]);
 		PLH::Tools::XTrace("%s %s\n", CurIns->mnemonic,CurIns->op_str);
 
-		for (int j = 0; j < x86->op_count; j++)
+		for (uint_fast32_t j = 0; j < x86->op_count; j++)
 		{
 			cs_x86_op* op = &(x86->operands[j]);
 			if (op->type == X86_OP_MEM)
@@ -151,7 +151,6 @@ void PLH::AbstractDetour::RelocateASM(BYTE* Code, DWORD* CodeSize, DWORD64 From,
 				if (x86->op_count > 1) //exclude types like sub rsp,0x20
 					continue;
 
-				
 				char* mnemonic = CurIns->mnemonic;
 				if (m_ASMInfo.IsConditionalJump(CurIns->bytes,CurIns->size))
 				{
@@ -182,7 +181,7 @@ void PLH::AbstractDetour::RelocateASM(BYTE* Code, DWORD* CodeSize, DWORD64 From,
 	cs_free(InstructionInfo, InstructionCount);
 }
 
-void PLH::AbstractDetour::_Relocate(cs_insn* CurIns, DWORD64 From, DWORD64 To, const uint8_t DispSize, const uint8_t DispOffset)
+void PLH::AbstractDetour::_Relocate(cs_insn* CurIns, const uintptr_t From,const uintptr_t To, const uint8_t DispSize, const uint8_t DispOffset)
 {
 	PLH::Tools::XTrace("Relocating...\n");
 
@@ -205,6 +204,9 @@ void PLH::AbstractDetour::_Relocate(cs_insn* CurIns, DWORD64 From, DWORD64 To, c
 
 void PLH::AbstractDetour::FlushSrcInsCache()
 {
+	/*This method is just a precaution, on x86/x64 it is usually a no-op, 
+	on other platforms it may be required (ARM i believe?)*/
+
 	//Flush overwritten original
 	FlushInstructionCache(GetCurrentProcess(), m_hkSrc, m_OriginalLength);
 
@@ -220,34 +222,34 @@ void PLH::AbstractDetour::Initialize(cs_mode Mode)
 	cs_option(m_CapstoneHandle, CS_OPT_DETAIL, CS_OPT_ON);
 }
 
-void PLH::AbstractDetour::RelocateConditionalJMP(cs_insn* CurIns, DWORD* CodeSize, DWORD64 From, DWORD64 To, const uint8_t DispSize, const uint8_t DispOffset)
+void PLH::AbstractDetour::RelocateConditionalJMP(cs_insn* CurIns, uint_fast32_t* CodeSize,const uintptr_t From,const uintptr_t To, const uint8_t DispSize, const uint8_t DispOffset)
 {
 	/*This function automatically begins to build a jump table at the end of the trampoline to allow relative jumps to function properly:
 	-Changes relative jump to point to an absolute jump
 	-Absolute jump then does the long distance to jump to where the relative jump originally went
 	*/
 	ASMHelper::DISP DispType = m_ASMInfo.GetDisplacementType(DispSize);
-	DWORD64 TrampolineEnd = To + (*CodeSize);
+	uintptr_t TrampolineEnd = To + (*CodeSize);
 	if (DispType == ASMHelper::DISP::D_INT8)
 	{
 		int8_t Disp = m_ASMInfo.GetDisplacement<int8_t>(CurIns->bytes, DispOffset);
-		DWORD64 OriginalDestination = CurIns->address + (Disp - (To - From)) + CurIns->size;
+		uintptr_t OriginalDestination = CurIns->address + (Disp - (To - From)) + CurIns->size;
 		WriteJMP(TrampolineEnd, OriginalDestination);
-		Disp = CalculateRelativeDisplacement<int8_t>(CurIns->address, (DWORD64)TrampolineEnd, CurIns->size); //set relative jmp to go to our absolute
+		Disp = CalculateRelativeDisplacement<int8_t>(CurIns->address, TrampolineEnd, CurIns->size); //set relative jmp to go to our absolute
 		*(int8_t*)(CurIns->address + DispOffset) = Disp;
 		(*CodeSize) += GetJMPSize();
 	}else if (DispType == ASMHelper::DISP::D_INT16) {
 		int16_t Disp = Disp = m_ASMInfo.GetDisplacement<int16_t>(CurIns->bytes, DispOffset);
-		DWORD64 OriginalDestination = CurIns->address + (Disp - (To - From)) + CurIns->size;
+		uintptr_t OriginalDestination = CurIns->address + (Disp - (To - From)) + CurIns->size;
 		WriteJMP(TrampolineEnd, OriginalDestination);
-		Disp = CalculateRelativeDisplacement<int16_t>(CurIns->address, (DWORD64)TrampolineEnd, CurIns->size);
+		Disp = CalculateRelativeDisplacement<int16_t>(CurIns->address, TrampolineEnd, CurIns->size);
 		*(int16_t*)(CurIns->address + DispOffset) = Disp;
 		(*CodeSize) += GetJMPSize();
 	}else if (DispType == ASMHelper::DISP::D_INT32) {
 		int32_t Disp = Disp = m_ASMInfo.GetDisplacement<int32_t>(CurIns->bytes, DispOffset);
-		DWORD64 OriginalDestination = CurIns->address + (Disp - (To - From)) + CurIns->size;
+		uintptr_t OriginalDestination = CurIns->address + (Disp - (To - From)) + CurIns->size;
 		WriteJMP(TrampolineEnd, OriginalDestination);
-		Disp = CalculateRelativeDisplacement<int32_t>(CurIns->address, (DWORD64)TrampolineEnd, CurIns->size);
+		Disp = CalculateRelativeDisplacement<int32_t>(CurIns->address, TrampolineEnd, CurIns->size);
 		*(int32_t*)(CurIns->address + DispOffset) = Disp;
 		(*CodeSize) += GetJMPSize();
 	}
@@ -290,23 +292,23 @@ bool PLH::X86Detour::Hook()
 	Tools::ThreadManager ThreadMngr;
 	ThreadMngr.SuspendThreads();
 
-	m_Trampoline = new BYTE[m_hkLength + 30];   //Allocate Space for original plus extra to jump back and for jmp table
+	m_Trampoline = new uint8_t[m_hkLength + 30];   //Allocate Space for original plus extra to jump back and for jmp table
 	m_NeedFree = true;
 	VirtualProtect(m_Trampoline, m_hkLength + 30, PAGE_EXECUTE_READWRITE, &OldProtection); //Allow Execution
 	
 	memcpy(m_OriginalCode, m_hkSrc, m_hkLength);
 	memcpy(m_Trampoline, m_hkSrc, m_hkLength); //Copy original into allocated space
-	WriteAbsoluteJMP((DWORD)&m_Trampoline[m_hkLength], (DWORD)m_hkSrc + m_hkLength); //JMP back to original code, use absolute so we don't accidentally relocate it
+	WriteAbsoluteJMP((uintptr_t)&m_Trampoline[m_hkLength], (uintptr_t)m_hkSrc + m_hkLength); //JMP back to original code, use absolute so we don't accidentally relocate it
 	m_hkLength += 6; //Size of above jump
-	RelocateASM(m_Trampoline, &m_hkLength, (DWORD)m_hkSrc, (DWORD)m_Trampoline);
+	RelocateASM(m_Trampoline, &m_hkLength, (uintptr_t)m_hkSrc, (uintptr_t)m_Trampoline);
 	
 	//Change protection to allow write on original function
 	MemoryProtect Protector(m_hkSrc, m_hkLength, PAGE_EXECUTE_READWRITE);
 	//Encode Jump from Hooked Function to the Destination function
-	WriteRelativeJMP((DWORD)m_hkSrc, (DWORD)m_hkDest);
+	WriteRelativeJMP((uintptr_t)m_hkSrc, (uintptr_t)m_hkDest);
 
 	//Write nops over bytes of overwritten instructions
-	for (int i = 5; i < m_OriginalLength; i++)
+	for (uint_fast16_t i = 5; i < m_OriginalLength; i++)
 		m_hkSrc[i] = 0x90;
 
 	ThreadMngr.ResumeThreads();
@@ -327,8 +329,9 @@ bool PLH::X86Detour::Hook()
 	-Execute Overwritten Opcodes
 	-Patch original relative jmps to point to jump table (JE Jumptable entry 1)
 	-JMP to rest of function (in original)
-	-*BEGIN JUMPTABLE*
+	-*BEGIN JUMPTABLE*     <- Allows relative conditional jumps to point back to their original location
 	-1)JMP to location of relative jmp one
+	-2)JMP to location of relative jmp two
 	-2)...continue pattern for all relative jmps
 	*/
 }
@@ -347,24 +350,24 @@ void PLH::X86Detour::FreeTrampoline()
 	}
 }
 
-void PLH::X86Detour::WriteAbsoluteJMP(DWORD Destination, DWORD JMPDestination)
+void PLH::X86Detour::WriteAbsoluteJMP(const uintptr_t Destination,const uintptr_t JMPDestination)
 {
 	/*
 	push <addr>
 	ret
 	*/
-	BYTE detour[] = { 0x68, 0xCC, 0xCC, 0xCC, 0xCC, 0xC3 };
-	memcpy((BYTE*)Destination, detour, sizeof(detour));
-	*(DWORD*)&((BYTE*)Destination)[1] = JMPDestination;
+	uint8_t detour[] = { 0x68, 0xCC, 0xCC, 0xCC, 0xCC, 0xC3 };
+	memcpy((uint8_t*)Destination, detour, sizeof(detour));
+	*(uintptr_t*)&((uint8_t*)Destination)[1] = JMPDestination;
 }
 
-void PLH::X86Detour::WriteRelativeJMP(DWORD Destination, DWORD JMPDestination)
+void PLH::X86Detour::WriteRelativeJMP(const uintptr_t Destination,const uintptr_t JMPDestination)
 {
-	*(BYTE*)Destination = 0xE9;       //Write jump opcode to jump back to non overwritten code
+	*(uint8_t*)Destination = 0xE9;       //Write jump opcode to jump back to non overwritten code
 	*(long*)(Destination + 1) = CalculateRelativeDisplacement<long>(Destination, JMPDestination, 5);
 }
 
-void PLH::X86Detour::WriteJMP(DWORD_PTR From, DWORD_PTR To)
+void PLH::X86Detour::WriteJMP(const uintptr_t From, const uintptr_t To)
 {
 	WriteRelativeJMP(From, To);
 }
@@ -397,11 +400,11 @@ bool PLH::X64Detour::Hook()
 {
 	//Allocate Memory as close as possible to src, to minimize chance 32bit displacements will be out of range (for relative jmp type)
 	size_t AllocDelta = 0;
-	m_Trampoline = (BYTE*)Tools::AllocateWithin2GB(m_hkSrc, 0x1000, AllocDelta);
+	m_Trampoline = (uint8_t*)Tools::AllocateWithin2GB(m_hkSrc, 0x1000, AllocDelta);
 	if (m_Trampoline == nullptr)
 	{
 		PostError(RuntimeError(RuntimeError::Severity::Critical, "PolyHook x64Detour: Could not allocate within +-2GB...Falling Back to any location"));
-		m_Trampoline = (BYTE*)VirtualAlloc(0, 0x1000, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
+		m_Trampoline = (uint8_t*)VirtualAlloc(0, 0x1000, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
 		if(m_Trampoline == nullptr)
 			return false;
 	}else{
@@ -432,9 +435,9 @@ bool PLH::X64Detour::Hook()
 
 	memcpy(m_OriginalCode, m_hkSrc, m_hkLength);
 	memcpy(m_Trampoline, m_hkSrc, m_hkLength);
-	WriteAbsoluteJMP((DWORD64)&m_Trampoline[m_hkLength], (DWORD64)m_hkSrc + m_hkLength);
+	WriteAbsoluteJMP((uintptr_t)&m_Trampoline[m_hkLength], (uintptr_t)m_hkSrc + m_hkLength);
 	m_hkLength += 16; //Size of the above absolute jmp
-	RelocateASM(m_Trampoline,&m_hkLength, (DWORD64)m_hkSrc, (DWORD64)m_Trampoline);
+	RelocateASM(m_Trampoline,&m_hkLength, (uintptr_t)m_hkSrc, (uintptr_t)m_Trampoline);
 	//Write the jmp from our trampoline back to the original
 	
 	// Build a far jump to the Destination function. (jmps not to address pointed at but to the value in the address)
@@ -446,14 +449,14 @@ bool PLH::X64Detour::Hook()
 		m_hkSrc[0] = 0xFF;
 		m_hkSrc[1] = 0x25;
 		//Write 32Bit Displacement from rip
-		*(long*)(m_hkSrc + 2) = CalculateRelativeDisplacement<long>((DWORD64)m_hkSrc, (DWORD64)&m_Trampoline[m_hkLength + 16], 6);
-		*(DWORD64*)&m_Trampoline[m_hkLength + 16] = (DWORD64)m_hkDest; //Write the address into memory at [RIP+Displacement]
+		*(long*)(m_hkSrc + 2) = CalculateRelativeDisplacement<long>((uintptr_t)m_hkSrc, (uintptr_t)&m_Trampoline[m_hkLength + 16], 6);
+		*(uintptr_t*)&m_Trampoline[m_hkLength + 16] = (uintptr_t)m_hkDest; //Write the address into memory at [RIP+Displacement]
 	}else {
 		HookSize = 16;
-		WriteAbsoluteJMP((DWORD64)m_hkSrc, (DWORD64)m_hkDest);
+		WriteAbsoluteJMP((uintptr_t)m_hkSrc, (uintptr_t)m_hkDest);
 	}
 	//Nop Extra bytes from overwritten opcode
-	for (int i = HookSize; i < m_OriginalLength; i++)
+	for (uint_fast16_t i = HookSize; i < m_OriginalLength; i++)
 		m_hkSrc[i] = 0x90;
 
 	//Done hooking, resume threads and flush cache (cache flush is usually just a no-op)
@@ -478,18 +481,18 @@ void PLH::X64Detour::FreeTrampoline()
 	}
 }
 
-void PLH::X64Detour::WriteAbsoluteJMP(DWORD64 Destination, DWORD64 JMPDestination)
+void PLH::X64Detour::WriteAbsoluteJMP(const uintptr_t Destination,const uintptr_t JMPDestination)
 {
 	/*push rax
 	mov rax ...   //Address to original
 	xchg qword ptr ss:[rsp], rax
 	ret*/
-	BYTE detour[] = { 0x50, 0x48, 0xB8, 0xCC, 0xCC, 0xCC, 0xCC, 0xCC, 0xCC, 0xCC, 0xCC, 0x48, 0x87, 0x04, 0x24, 0xC3 };
-	memcpy((BYTE*)Destination, detour, sizeof(detour));
-	*(DWORD64*)&((BYTE*)Destination)[3] = JMPDestination;
+	uint8_t detour[] = { 0x50, 0x48, 0xB8, 0xCC, 0xCC, 0xCC, 0xCC, 0xCC, 0xCC, 0xCC, 0xCC, 0x48, 0x87, 0x04, 0x24, 0xC3 };
+	memcpy((uint8_t*)Destination, detour, sizeof(detour));
+	*(uintptr_t*)&((uint8_t*)Destination)[3] = JMPDestination;
 }
 
-void PLH::X64Detour::WriteJMP(DWORD_PTR From, DWORD_PTR To)
+void PLH::X64Detour::WriteJMP(const uintptr_t From,const uintptr_t To)
 {
 	WriteAbsoluteJMP(From, To);
 }
@@ -522,7 +525,7 @@ void PLH::VFuncSwap::UnHook()
 	m_Hooked = false;
 }
 
-void PLH::VFuncSwap::SetupHook(BYTE** Vtable, const int Index, BYTE* Dest)
+void PLH::VFuncSwap::SetupHook(uint8_t** Vtable, const uint_fast16_t Index, uint8_t* Dest)
 {
 	m_hkVtable = Vtable;
 	m_hkDest = Dest;
@@ -565,7 +568,7 @@ void PLH::VFuncDetour::UnHook()
 	m_Detour->UnHook();
 }
 
-void PLH::VFuncDetour::SetupHook(BYTE** Vtable, const int Index, BYTE* Dest)
+void PLH::VFuncDetour::SetupHook(uint8_t** Vtable, const uint_fast16_t Index, uint8_t* Dest)
 {
 	m_Detour->SetupHook(Vtable[Index], Dest);
 }
@@ -605,7 +608,7 @@ bool PLH::VTableSwap::Hook()
 	m_OrigVtable = *m_phkClass;
 	m_hkOriginal = m_OrigVtable[m_hkIndex];
 	m_VFuncCount = GetVFuncCount(m_OrigVtable);
-	m_NewVtable = (BYTE**) new DWORD_PTR[m_VFuncCount];
+	m_NewVtable = (uint8_t**) new uintptr_t[m_VFuncCount];
 	m_NeedFree = true;
 	memcpy(m_NewVtable, m_OrigVtable, sizeof(void*)*m_VFuncCount);
 	*m_phkClass = m_NewVtable;
@@ -622,14 +625,14 @@ void PLH::VTableSwap::UnHook()
 	m_Hooked = false;
 }
 
-void PLH::VTableSwap::SetupHook(BYTE* pClass, const int Index, BYTE* Dest)
+void PLH::VTableSwap::SetupHook(uint8_t* pClass, const uint_fast16_t Index, uint8_t* Dest)
 {
 	m_phkClass = (BYTE***)pClass; //ppp is just convenient to work with
 	m_hkDest = Dest;
 	m_hkIndex = Index;
 }
 
-int PLH::VTableSwap::GetVFuncCount(BYTE** pVtable)
+uint_fast16_t PLH::VTableSwap::GetVFuncCount(uint8_t** pVtable)
 {
 	int FuncCount = 0;
 	for (; ; FuncCount++)
@@ -675,9 +678,9 @@ bool PLH::IATHook::Hook()
 		return false;
 	}
 
-	MemoryProtect Protector(Thunk, sizeof(ULONG_PTR), PAGE_EXECUTE_READWRITE);
+	MemoryProtect Protector(Thunk, sizeof(uintptr_t), PAGE_EXECUTE_READWRITE);
 	m_pIATFuncOrig = (void*)Thunk->u1.Function;
-	Thunk->u1.Function = (ULONG_PTR)m_hkDest;
+	Thunk->u1.Function = (uintptr_t)m_hkDest;
 	m_Hooked = true;
 	return true;
 }
@@ -693,7 +696,7 @@ void PLH::IATHook::UnHook()
 	m_Hooked = false;
 }
 
-void PLH::IATHook::SetupHook(const char* LibraryName,const char* SrcFunc, BYTE* Dest,const char* Module)
+void PLH::IATHook::SetupHook(const char* LibraryName,const char* SrcFunc, uint8_t* Dest,const char* Module)
 {
 	m_hkLibraryName = LibraryName;
 	m_hkSrcFunc = SrcFunc;
@@ -720,7 +723,7 @@ bool PLH::IATHook::FindIATFunc(const char* LibraryName,const char* FuncName, PIM
 	PIMAGE_IMPORT_DESCRIPTOR pImports = (PIMAGE_IMPORT_DESCRIPTOR)
 		ImageDirectoryEntryToDataEx(hInst, TRUE, IMAGE_DIRECTORY_ENTRY_IMPORT, &Sz, nullptr);
 
-	for (int i = 0; pImports[i].Characteristics != 0; i++)
+	for (uint_fast16_t i = 0; pImports[i].Characteristics != 0; i++)
 	{
 		//Check if we have the correct library (ex: kernel32.dll)
 		char* _ModuleName = (char*)ResolveRVA(hInst, pImports[i].Name);
@@ -797,7 +800,7 @@ PLH::VEHHook::~VEHHook()
 		UnHook();
 }
 
-bool PLH::VEHHook::AreInSamePage(BYTE* Addr1, BYTE* Addr2)
+bool PLH::VEHHook::AreInSamePage(const uint8_t* Addr1,const uint8_t* Addr2)
 {
 	//If VQ fails, be safe and say they are in same page
 	MEMORY_BASIC_INFORMATION mbi1;
@@ -814,7 +817,7 @@ bool PLH::VEHHook::AreInSamePage(BYTE* Addr1, BYTE* Addr2)
 	return false;
 }
 
-void PLH::VEHHook::SetupHook(BYTE* Src, BYTE* Dest,VEHMethod Method)
+void PLH::VEHHook::SetupHook(uint8_t* Src, uint8_t* Dest,VEHMethod Method)
 {
 	HookCtx Ctx(Src, Dest, Method);
 	m_ThisCtx = Ctx;
@@ -988,7 +991,6 @@ LONG CALLBACK PLH::VEHHook::VEHHandler(EXCEPTION_POINTERS* ExceptionInfo)
 		ExceptionInfo->ContextRecord->Dr6 = 0; 
 		for (HookCtx& Ctx : m_HookTargets)
 		{
-			
 			if (Ctx.m_Type != VEHMethod::HARDWARE_BP)
 				continue;
 		
@@ -1010,11 +1012,11 @@ LONG CALLBACK PLH::VEHHook::VEHHandler(EXCEPTION_POINTERS* ExceptionInfo)
 			if (Ctx.m_Type != VEHMethod::GUARD_PAGE)
 				continue;
 
-			if(!AreInSamePage((BYTE*)ExceptionInfo->ContextRecord->XIP,Ctx.m_Src))
+			if(!AreInSamePage((uint8_t*)ExceptionInfo->ContextRecord->XIP,Ctx.m_Src))
 				continue;
 
-			if (ExceptionInfo->ContextRecord->XIP == (DWORD_PTR)Ctx.m_Src)
-				ExceptionInfo->ContextRecord->XIP = (DWORD_PTR)Ctx.m_Dest;
+			if (ExceptionInfo->ContextRecord->XIP == (uintptr_t)Ctx.m_Src)
+				ExceptionInfo->ContextRecord->XIP = (uintptr_t)Ctx.m_Dest;
 
 			return EXCEPTION_CONTINUE_EXECUTION;
 		}

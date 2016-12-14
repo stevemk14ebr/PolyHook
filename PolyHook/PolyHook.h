@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <utility>
 #include <TlHelp32.h>
+#include <assert.h>
 #pragma comment(lib,"Dbghelp.lib")
 #pragma comment(lib,"capstone.lib")
 #define PLH_SHOW_DEBUG_MESSAGES 1 //To print messages even in release
@@ -145,7 +146,7 @@ namespace PLH {
 			I passed delta variable as a parameter instead of capturing it because it is faster, it allows
 			the compiler to optimize the lambda into a function pointer rather than constructing
 			an anonymous class and incur the extra overhead that involves (negligible overhead but why not optimize)*/
-			auto Incrementor = [](int_fast64_t Delta,MEMORY_BASIC_INFORMATION mbi) -> uintptr_t{
+			auto Incrementor = [](int_fast64_t Delta,MEMORY_BASIC_INFORMATION& mbi) -> uintptr_t{
 				if (Delta > 0)
 					return (uintptr_t)mbi.BaseAddress + mbi.RegionSize;
 				else
@@ -166,11 +167,13 @@ namespace PLH {
 				if (!VirtualQuery((LPCVOID)Addr, &mbi, sizeof(mbi)))
 					break;
 
+				assert(mbi.RegionSize != 0);
+
 				if (mbi.State != MEM_FREE)
 					continue;
 
 				//VirtualAlloc requires 64k aligned addresses
-				void* PageBase = (uint8_t*)mbi.BaseAddress - (PtrToUlong(mbi.BaseAddress) & 0xffff);
+				void* PageBase = (uint8_t*)mbi.BaseAddress - LOWORD(mbi.BaseAddress);
 				if (void* Allocated = (uint8_t*)VirtualAlloc(PageBase, Size, MEM_RESERVE | MEM_COMMIT, PAGE_EXECUTE_READWRITE))
 					return Allocated;
 			}
@@ -179,20 +182,22 @@ namespace PLH {
 
 		inline void* AllocateWithin2GB(uint8_t* pStart, size_t Size, size_t& AllocationDelta)
 		{
+			static const size_t MaxAllocationDelta = 0x80000000; //2GB
+
 			//Attempt to allocate +-2GB from pStart
 			AllocationDelta = 0;
 			void* Allocated = nullptr;
-			Allocated = Tools::Allocate_2GB_IMPL(pStart, Size, 0xFFFFFFFF80000000); //Search down first (-2GB) (~0x80000000+1)
+			Allocated = Tools::Allocate_2GB_IMPL(pStart, Size, (~MaxAllocationDelta) + 1); //Search down first (-2GB) 
 
 			//If search down found nothing
 			if (Allocated == nullptr)
-				Allocated = Tools::Allocate_2GB_IMPL(pStart, Size,0x80000000); //Search up (+2GB)
-
+				Allocated = Tools::Allocate_2GB_IMPL(pStart, Size, MaxAllocationDelta); //Search up (+2GB)
+	
 			//Sanity check the delta is less than 2GB
 			if (Allocated != nullptr)
 			{
 				AllocationDelta = std::abs(pStart - Allocated);
-				if (AllocationDelta > 0x80000000)
+				if (AllocationDelta > MaxAllocationDelta)
 				{
 					//Out of range, free then return
 					VirtualFree(Allocated, 0, MEM_RELEASE);

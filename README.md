@@ -1,6 +1,8 @@
 # PolyHook - x86/x64 Hooking Library
 **Provides abstract C++ 11 interface  for various hooking methods**
 
+Technical Writeup: https://www.codeproject.com/articles/1100579/polyhook-the-cplusplus-x-x-hooking-library
+
 #Hooking Methods*:
 
 1. **_Detour_**

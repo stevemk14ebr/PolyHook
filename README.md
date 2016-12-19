@@ -1,6 +1,8 @@
 # PolyHook - x86/x64 Hooking Library
 **Provides abstract C++ 11 interface  for various hooking methods**
 
+Technical Writeup: https://www.codeproject.com/articles/1100579/polyhook-the-cplusplus-x-x-hooking-library
+
 #Hooking Methods*:
 
 1. **_Detour_**
@@ -43,6 +45,12 @@ Detour_Ex->Hook();
 oMessageBoxA = Detour_Ex->GetOriginal<tMessageBoxA>();
 Detour_Ex->UnHook();
 ```
+
+#DONATIONS:
+This project took a LOT of time to create. I open sourced my work because I believe that open sourcing helps everyone, commercial uses included. I'm a college student with a tight schedule, if this project helped you at all I ask you to consider donating. I promise to keep this project alive.
+
+[![](https://www.paypalobjects.com/en_US/i/btn/btn_donateCC_LG.gif)]
+(https://www.paypal.com/cgi-bin/webscr?cmd=_donations&business=M2K8DQUNDUGMW&lc=US&item_name=PolyHook%20Donation&currency_code=USD&bn=PP%2dDonationsBF%3abtn_donateCC_LG%2egif%3aNonHosted)
 
 #LICENSE:
 MIT

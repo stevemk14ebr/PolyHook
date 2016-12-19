@@ -1,8 +1,7 @@
 // PolyHook.cpp : Defines the entry point for the console application.
 //
-#include <tchar.h>
+#include "PolyHook.hpp"
 #define CATCH_CONFIG_MAIN
-#include "PolyHook.h"
 #include "CatchUnitTest.h"
 
 decltype(&MessageBoxA) oMessageBoxA;

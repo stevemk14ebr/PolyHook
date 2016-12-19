@@ -18,17 +18,14 @@
     <Text Include="ReadMe.txt" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="PolyHook.h">
+    <ClInclude Include="CatchUnitTest.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="CatchUnitTest.h">
+    <ClInclude Include="PolyHook.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="PolyHook.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="Tests.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>

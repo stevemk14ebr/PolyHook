@@ -158,11 +158,10 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="CatchUnitTest.h" />
-    <ClInclude Include="PolyHook.h" />
+    <ClInclude Include="PolyHook.hpp" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Tests.cpp" />
-    <ClCompile Include="PolyHook.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

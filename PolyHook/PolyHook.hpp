@@ -17,7 +17,7 @@
 namespace PLH {
 	namespace Tools
 	{
-		inline void XTrace(char* fmt, ...)
+		inline void XTrace(const char* fmt, ...)
 		{
 			va_list args;
 			va_start(args, fmt);

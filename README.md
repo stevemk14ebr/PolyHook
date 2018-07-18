@@ -3,6 +3,9 @@
 
 Technical Writeup: https://www.codeproject.com/articles/1100579/polyhook-the-cplusplus-x-x-hooking-library
 
+# OUTDATED
+Please use V2: https://github.com/stevemk14ebr/PolyHook_2_0
+
 # Hooking Methods*:
 
 1. **_Detour_**

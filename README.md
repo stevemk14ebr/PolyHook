@@ -4,7 +4,7 @@
 Technical Writeup: https://www.codeproject.com/articles/1100579/polyhook-the-cplusplus-x-x-hooking-library
 
 # OUTDATED
-Please use V2: https://github.com/stevemk14ebr/PolyHook_2_0
+Please use V2: https://github.com/stevemk14ebr/PolyHook_2_0. Consider sponsoring my development by clicking sponsor up in the top right!
 
 # Hooking Methods*:
 
